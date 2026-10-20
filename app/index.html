@@ -267,7 +267,7 @@ select.input { appearance: none; -webkit-appearance: none;
    wait in a queue (also on the phone) and go out later.
    ========================================================= */
 
-const VERSION = "1.0.2";
+const VERSION = "1.0.3";
 const KEYS = { data: "sh.data", outbox: "sh.outbox", settings: "sh.settings", sync: "sh.sync" };
 
 /* ---------- storage ---------- */
@@ -631,6 +631,7 @@ async function onSetupSubmit(ev) {
     return;
   }
   if (!key) { out.className = "result bad"; out.textContent = "Enter the backup key."; return; }
+  const linkChanged = url !== settings.url;
   settings = { url, key };
   store(KEYS.settings, settings);
   out.className = "result"; out.textContent = "Testing the connection…";
@@ -638,7 +639,12 @@ async function onSetupSubmit(ev) {
     const r = await callSheet("");
     out.className = "result ok";
     out.textContent = `Connected to "${r.sheet}". The sheet has ${plural(r.projects, "project")} and ${r.entries} ${r.entries === 1 ? "entry" : "entries"}.`;
-    if (!sync.lastOk && (data.projects.length || data.entries.length)) resendAll(true);
+    // A new or emptied sheet would otherwise only get changes made from now on.
+    const sheetShort = r.projects < data.projects.length || r.entries < data.entries.length;
+    if ((!sync.lastOk || linkChanged || sheetShort) && (data.projects.length || data.entries.length)) {
+      resendAll(true);
+      out.textContent += " Sending " + plural(data.projects.length + data.entries.length, "item") + " from this phone to it.";
+    }
     if (!data.projects.length && (r.projects || r.entries)) {
       out.textContent += " Tap Restore below to bring them onto this phone.";
     }

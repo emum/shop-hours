@@ -35,6 +35,8 @@ SETUP.md                  end-user setup guide (Sheet, GitHub Pages, iPhone inst
 
 **Restore:** `GET ?key=…&action=export` returns everything. The app merges it in by ID, keeping the newer `updated` value, and never deletes anything on the phone. It skips any item with a delete still waiting in the outbox, so a restore can't bring back something just deleted.
 
+**Setup ("Save and test"):** if the phone has never backed up, the link changed, or the sheet has fewer projects or entries than the phone, everything on the phone is queued again. Resending is safe because the script upserts by ID and skips stale copies.
+
 ## Invariants (do not break these)
 
 1. Never remove an outbox item until the server has confirmed it.

@@ -1,5 +1,5 @@
 // Shop Hours offline cache. Bump VERSION when you change any app file.
-const VERSION = "shop-hours-1.0.2";
+const VERSION = "shop-hours-1.0.3";
 const FILES = ["./", "index.html", "manifest.webmanifest", "marker.woff2", "icon-180.png", "icon-192.png", "icon-512.png"];
 
 self.addEventListener("install", e => {

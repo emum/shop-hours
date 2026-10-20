@@ -10,11 +10,12 @@ os.makedirs(OUT, exist_ok=True)
 srv = http.server.ThreadingHTTPServer(("127.0.0.1", 8765), functools.partial(http.server.SimpleHTTPRequestHandler, directory=APP))
 threading.Thread(target=srv.serve_forever, daemon=True).start()
 
-# mock Google backend: a node process holding one sheet, talking JSON lines
+# mock Google backend: a node process holding one sheet per deployment id, talking JSON lines
 node = subprocess.Popen(["node", "-e", """
-const {loadScript}=require('./gasmock'); const g=loadScript(process.env.SCRIPT,'amx70');
+const {loadScript}=require('./gasmock'); const gs={};
 const rl=require('readline').createInterface({input:process.stdin});
 rl.on('line',l=>{const m=JSON.parse(l);let out;
+ const g=gs[m.sheet||'AKfyTEST']||(gs[m.sheet||'AKfyTEST']=loadScript(process.env.SCRIPT,'amx70'));
  if(m.dump){out={ent:g.ss.getSheetByName('Entries').rows,proj:g.ss.getSheetByName('Projects').rows,del:g.ss.getSheetByName('Deleted').rows};}
  else out=m.method==='GET'?g.get(m.params):g.post(m.body);
  process.stdout.write(JSON.stringify(out)+'\\n');});
@@ -32,15 +33,16 @@ def handler(route, req):
         state["held"] = route  # never answered, like a stalled request on one bar of signal
         return
     from urllib.parse import urlparse, parse_qs
+    sid = urlparse(req.url).path.split("/")[3]  # /macros/s/<deployment id>/exec
     if req.method == "POST":
         state["posts"] += 1
-        out = ask({"method": "POST", "body": req.post_data})
+        out = ask({"sheet": sid, "method": "POST", "body": req.post_data})
     else:
         q = {k: v[0] for k, v in parse_qs(urlparse(req.url).query).items()}
-        out = ask({"method": "GET", "params": q})
+        out = ask({"sheet": sid, "method": "GET", "params": q})
     route.fulfill(status=200, content_type="application/json", body=json.dumps(out), headers={"Access-Control-Allow-Origin": "*"})
-def sheet():
-    return ask({"method": "GET", "params": {"key": "amx70", "action": "export"}})
+def sheet(sid="AKfyTEST"):
+    return ask({"sheet": sid, "method": "GET", "params": {"key": "amx70", "action": "export"}})
 
 URL = "https://script.google.com/macros/s/AKfyTEST/exec"
 errors = []
@@ -174,6 +176,20 @@ with sync_playwright() as p:
     assert pg3.evaluate("outbox.length") == 0, "delete sent"
     assert not any(e["id"] == "eHang" for e in sheet()["entries"]), "gone from the sheet too"
     c3.close()
+
+    # switching to a new sheet sends everything already on the phone, not just new changes
+    c4, pg4 = setup_phone()
+    pg4.evaluate("putProject({id: 'pMove', name: 'Moving sheets', est: 50, status: 'active', created: nowIso()})")
+    pg4.evaluate(entry_js("eMove", "pMove", "Logged before the move"))
+    pg4.clock.run_for(2000); pg4.wait_for_timeout(300)
+    assert pg4.evaluate("outbox.length") == 0 and pg4.evaluate("sync.lastOk"), "synced to the first sheet"
+    pg4.goto("http://127.0.0.1:8765/#/backup"); pg4.wait_for_timeout(300)
+    pg4.fill("#f-url", URL.replace("AKfyTEST", "AKfyNEW")); pg4.click("text=Save and test")
+    pg4.wait_for_timeout(300); pg4.clock.run_for(2000); pg4.wait_for_timeout(300)
+    assert "Sending 2 items" in pg4.inner_text("#test-result"), pg4.inner_text("#test-result")
+    new = sheet("AKfyNEW")
+    assert [x["id"] for x in new["projects"]] == ["pMove"] and [x["id"] for x in new["entries"]] == ["eMove"], new
+    c4.close()
     b.close()
 print("posts:", state["posts"], "page errors:", errors)
 assert not errors, errors
