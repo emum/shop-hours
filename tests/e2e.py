@@ -160,6 +160,19 @@ with sync_playwright() as p:
     pg3.clock.run_for(16000); pg3.wait_for_timeout(500)
     assert pg3.evaluate("outbox.length") == 0, "outbox cleared after the retry"
     assert any(e["id"] == "eHang" for e in sheet()["entries"]), "entry reached the sheet"
+
+    # restore while a delete is still waiting must not bring the entry back
+    state["hang"] = True
+    pg3.evaluate("removeEntry('eHang')"); pg3.wait_for_timeout(300)
+    pg3.evaluate("restore()"); pg3.wait_for_timeout(300)
+    assert not pg3.evaluate("data.entries.some(e => e.id === 'eHang')"), "deleted entry stayed deleted"
+    state["hang"] = False
+    pg3.clock.run_for(46000); pg3.wait_for_timeout(200)
+    try: state.pop("held").abort()
+    except Exception: pass
+    pg3.clock.run_for(16000); pg3.wait_for_timeout(500)
+    assert pg3.evaluate("outbox.length") == 0, "delete sent"
+    assert not any(e["id"] == "eHang" for e in sheet()["entries"]), "gone from the sheet too"
     c3.close()
     b.close()
 print("posts:", state["posts"], "page errors:", errors)

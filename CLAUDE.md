@@ -33,7 +33,7 @@ SETUP.md                  end-user setup guide (Sheet, GitHub Pages, iPhone inst
 
 **Script side:** it checks `APP_KEY` and takes a script lock. Rows are upserted by ID, and an incoming op is skipped if the sheet's `Updated` value is newer, so the last writer wins by `updated`. A delete copies the row to the `Deleted` tab before removing it. Text starting with `= + - @` is prefixed with `'` so it can't become a formula. The Projects tab has live `SUMIF` columns for logged hours and hours left. A rename rewrites the project name on the Entries tab.
 
-**Restore:** `GET ?key=…&action=export` returns everything. The app merges it in by ID, keeping the newer `updated` value, and never deletes anything on the phone.
+**Restore:** `GET ?key=…&action=export` returns everything. The app merges it in by ID, keeping the newer `updated` value, and never deletes anything on the phone. It skips any item with a delete still waiting in the outbox, so a restore can't bring back something just deleted.
 
 ## Invariants (do not break these)
 
