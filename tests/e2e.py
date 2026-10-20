@@ -24,10 +24,13 @@ def ask(m):
     with lock:
         node.stdin.write(json.dumps(m) + "\n"); node.stdin.flush()
         return json.loads(node.stdout.readline())
-state = {"down": False, "posts": 0}
+state = {"down": False, "hang": False, "posts": 0}
 def handler(route, req):
     if state["down"]:
         return route.abort()
+    if state["hang"] and req.method == "POST":
+        state["held"] = route  # never answered, like a stalled request on one bar of signal
+        return
     from urllib.parse import urlparse, parse_qs
     if req.method == "POST":
         state["posts"] += 1
@@ -129,6 +132,35 @@ with sync_playwright() as p:
     pg2.screenshot(path=f"{OUT}/10-dark-project.png")
     assert pg2.inner_text(".big .n") == "24.5", "restored total"
     c2.close()
+
+    # ---- scenarios: a phone already set up, driven through the app's own functions ----
+    def setup_phone():
+        c, pg = newctx()
+        pg.clock.install()
+        pg.goto("http://127.0.0.1:8765/")
+        pg.evaluate(f"localStorage.setItem('sh.settings', JSON.stringify({{url: '{URL}', key: 'amx70'}}))")
+        pg.reload(); pg.wait_for_timeout(300)
+        return c, pg
+    def entry_js(eid, pid, note):
+        return f"putEntry({{id: '{eid}', projectId: '{pid}', date: '2026-10-18', hours: 2, note: '{note}', created: nowIso()}})"
+
+    # a request that never answers times out, and the backup carries on
+    c3, pg3 = setup_phone()
+    pg3.evaluate("putProject({id: 'pHang', name: 'Hang test', est: null, status: 'active', created: nowIso()})")
+    pg3.wait_for_timeout(500)
+    state["hang"] = True
+    pg3.evaluate(entry_js("eHang", "pHang", "Sent on one bar"))
+    pg3.wait_for_timeout(300)
+    assert pg3.evaluate("flushing"), "request in flight"
+    state["hang"] = False
+    pg3.clock.run_for(46000); pg3.wait_for_timeout(200)
+    assert "took too long" in pg3.inner_text("#status"), pg3.inner_text("#status")
+    try: state.pop("held").abort()  # the page gave up on it; tidy up the test side
+    except Exception: pass
+    pg3.clock.run_for(16000); pg3.wait_for_timeout(500)
+    assert pg3.evaluate("outbox.length") == 0, "outbox cleared after the retry"
+    assert any(e["id"] == "eHang" for e in sheet()["entries"]), "entry reached the sheet"
+    c3.close()
     b.close()
 print("posts:", state["posts"], "page errors:", errors)
 assert not errors, errors

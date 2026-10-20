@@ -27,7 +27,7 @@ SETUP.md                  end-user setup guide (Sheet, GitHub Pages, iPhone inst
 - `sh.settings` is `{url, key}`, the Apps Script URL and its passphrase.
 - `sh.sync` is `{lastOk, lastError, lastTry}`.
 
-**Write path:** save to local storage first, then enqueue an op, then flush. Op types are `putProject`, `delProject`, `putEntry` and `delEntry`. Each item has at most one pending op. A newer op replaces the older one *in place*, which keeps projects ahead of their entries. A flush POSTs up to 150 ops as one batch, removes them from the outbox only after `{ok:true}`, and backs off exponentially from 15 s to 10 min. It also retries when the phone comes back online and when the app returns to the foreground.
+**Write path:** save to local storage first, then enqueue an op, then flush. Op types are `putProject`, `delProject`, `putEntry` and `delEntry`. Each item has at most one pending op. A newer op replaces the older one *in place*, which keeps projects ahead of their entries. A flush POSTs up to 150 ops as one batch, removes them from the outbox only after `{ok:true}`, and backs off exponentially from 15 s to 10 min. Every call to Google is aborted after 45 s (`fetchJson`), so a stalled request can't block later flushes. A timeout also cuts the next batch to a third (minimum 10), and each success doubles it back toward 150. It also retries when the phone comes back online and when the app returns to the foreground.
 
 **POST without a Content-Type header** (it is sent as text/plain) to avoid a CORS preflight, which Apps Script cannot answer. Keep it that way.
 

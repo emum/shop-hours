@@ -267,7 +267,7 @@ select.input { appearance: none; -webkit-appearance: none;
    wait in a queue (also on the phone) and go out later.
    ========================================================= */
 
-const VERSION = "1.0";
+const VERSION = "1.0.1";
 const KEYS = { data: "sh.data", outbox: "sh.outbox", settings: "sh.settings", sync: "sh.sync" };
 
 /* ---------- storage ---------- */
@@ -372,7 +372,24 @@ function queue(op, key, noFlush) {
 const isPending = key => outbox.some(x => x.key === key);
 const backupReady = () => !!(settings.url && settings.key);
 
-let flushing = false, flushTimer = null, retryDelay = 15000;
+// A request that never answers (weak signal, or iOS suspending the app mid-request)
+// must not hold up backups for the rest of the session, so every call to Google has a deadline.
+const FETCH_TIMEOUT = 45000;
+async function fetchJson(url, opts, unreadable) {
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), FETCH_TIMEOUT);
+  try {
+    const res = await fetch(url, Object.assign({ signal: ctl.signal }, opts));
+    return await res.json().catch(e => { throw ctl.signal.aborted ? e : new Error(unreadable); });
+  } catch (err) {
+    if (ctl.signal.aborted) throw Object.assign(new Error("Google took too long to answer. It will try again shortly."), { timedOut: true });
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+let flushing = false, flushTimer = null, retryDelay = 15000, batchMax = 150;
 function flushSoon(ms) {
   clearTimeout(flushTimer);
   flushTimer = setTimeout(flush, ms);
@@ -381,23 +398,25 @@ async function flush() {
   if (flushing || !backupReady() || !outbox.length) { renderStatus(); return; }
   flushing = true;
   renderStatus();
-  const batch = outbox.slice(0, 150);
+  const batch = outbox.slice(0, batchMax);
   const sent = new Set(batch.map(x => x.q));
   sync.lastTry = nowIso();
   try {
-    const res = await fetch(settings.url, {
+    const out = await fetchJson(settings.url, {
       method: "POST",
       body: JSON.stringify({ key: settings.key, ops: batch.map(x => x.op) }),
-    });
-    const out = await res.json().catch(() => { throw new Error("Google sent back something unexpected. Check the backup link."); });
+    }, "Google sent back something unexpected. Check the backup link.");
     if (!out.ok) throw new Error(out.error || "The backup sheet turned the change down.");
     outbox = outbox.filter(x => !sent.has(x.q));
     store(KEYS.outbox, outbox);
     sync.lastOk = nowIso();
     sync.lastError = null;
     retryDelay = 15000;
+    batchMax = Math.min(150, batchMax * 2);
     if (outbox.length) flushSoon(250);
   } catch (err) {
+    // A slow script may have timed out on a big batch; send less next time.
+    if (err.timedOut) batchMax = Math.max(10, Math.floor(batchMax / 3));
     const offline = !navigator.onLine || /load failed|failed to fetch|network/i.test(String(err.message));
     sync.lastError = offline ? "No connection right now. It will back up once the phone is online." : err.message;
     flushSoon(retryDelay);
@@ -415,8 +434,7 @@ document.addEventListener("visibilitychange", () => { if (!document.hidden) flus
 async function callSheet(action) {
   const sep = settings.url.includes("?") ? "&" : "?";
   const url = settings.url + sep + "key=" + encodeURIComponent(settings.key) + (action ? "&action=" + action : "");
-  const res = await fetch(url);
-  const out = await res.json().catch(() => { throw new Error("That link didn't answer like the backup script. Copy the Web app URL again from Apps Script."); });
+  const out = await fetchJson(url, {}, "That link didn't answer like the backup script. Copy the Web app URL again from Apps Script.");
   if (!out.ok) throw new Error(out.error || "The backup sheet returned an error.");
   return out;
 }
