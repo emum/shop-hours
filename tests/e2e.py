@@ -36,6 +36,8 @@ def handler(route, req):
         q = {k: v[0] for k, v in parse_qs(urlparse(req.url).query).items()}
         out = ask({"method": "GET", "params": q})
     route.fulfill(status=200, content_type="application/json", body=json.dumps(out), headers={"Access-Control-Allow-Origin": "*"})
+def sheet():
+    return ask({"method": "GET", "params": {"key": "amx70", "action": "export"}})
 
 URL = "https://script.google.com/macros/s/AKfyTEST/exec"
 errors = []
@@ -81,13 +83,15 @@ with sync_playwright() as p:
     pg.click("text=Set up backup"); pg.wait_for_timeout(200)
     pg.fill("#f-url", URL); pg.fill("#f-key", "wrong")
     pg.click("text=Save and test"); pg.wait_for_timeout(400)
-    print("wrong key ->", pg.inner_text("#test-result"))
+    assert "does not match" in pg.inner_text("#test-result"), "wrong key message"
     pg.fill("#f-key", "amx70"); pg.click("text=Save and test"); pg.wait_for_timeout(1200)
-    print("right key ->", pg.inner_text("#test-result"))
+    assert "Connected to" in pg.inner_text("#test-result"), "right key message"
     pg.screenshot(path=f"{OUT}/5-settings.png", full_page=True)
     d = ask({"dump": 1})
-    print("sheet entries:", [r[:5] for r in d["ent"]])
-    print("sheet projects:", d["proj"])
+    assert [r[4] for r in d["ent"][1:]] == ["Stripped quarter panels, cut out rust in rear wheel wells",
+        "Welded patch panels, first skim of filler on driver side", "Blocked 120 door/trunk jams"], d["ent"]
+    assert [r[1] for r in d["proj"][1:]] == ["AMX"] and d["proj"][1][2] == 400, d["proj"]
+    assert pg.evaluate("outbox.length") == 0, "outbox empty after setup"
     # offline: new entry queues, then comes back
     state["down"] = True
     pg.click("text=Projects"); pg.wait_for_timeout(200)
@@ -95,11 +99,13 @@ with sync_playwright() as p:
     pg.click("#dock .btn"); pg.wait_for_timeout(300)
     pg.fill("#e-date", "2026-10-13"); pg.fill("#e-hours", "4"); pg.fill("#e-note", "Media blasted the trunk lid")
     pg.click("text=Save entry"); pg.wait_for_timeout(800)
-    print("offline status ->", pg.inner_text("#status"))
+    assert "1 change waiting" in pg.inner_text("#status"), pg.inner_text("#status")
+    assert pg.locator("[data-pending]:not([hidden])").count() == 1, "one entry marked not backed up"
     pg.screenshot(path=f"{OUT}/6-offline.png")
     state["down"] = False
     pg.click("[data-act=retry]"); pg.wait_for_timeout(1000)
-    print("back online ->", pg.inner_text("#status"))
+    assert "Everything backed up" in pg.inner_text("#status"), pg.inner_text("#status")
+    assert len(ask({"dump": 1})["ent"]) - 1 == 4, "offline entry reached the sheet"
     # edit + delete
     pg.click("text=Media blasted the trunk lid"); pg.wait_for_timeout(300)
     pg.click("text=Delete entry"); pg.wait_for_timeout(1000)
@@ -107,19 +113,22 @@ with sync_playwright() as p:
     pg.click("text=Projects"); pg.wait_for_timeout(300)
     pg.screenshot(path=f"{OUT}/8-home.png")
     d = ask({"dump": 1})
-    print("entries rows:", len(d["ent"]) - 1, "deleted rows:", [r[2:7] for r in d["del"][1:]])
+    assert len(d["ent"]) - 1 == 3, "entry removed from Entries"
+    assert [r[6] for r in d["del"][1:]] == ["Media blasted the trunk lid"], "copy kept on Deleted"
     c.close()
     # new phone: restore
     c2, pg2 = newctx("dark")
     pg2.goto("http://127.0.0.1:8765/#/backup"); pg2.wait_for_timeout(300)
     pg2.fill("#f-url", URL); pg2.fill("#f-key", "amx70"); pg2.click("text=Save and test"); pg2.wait_for_timeout(600)
-    print("new phone test ->", pg2.inner_text("#test-result"))
-    pg2.click("button[data-act=restore]"); pg2.wait_for_timeout(800); pg2.screenshot(path=f"{OUT}/8b-restored.png", full_page=True); print("toast ->", pg2.inner_text("#toast")); print("hash ->", pg2.evaluate("location.hash"))
+    assert "1 project and 3 entries" in pg2.inner_text("#test-result"), pg2.inner_text("#test-result")
+    pg2.click("button[data-act=restore]"); pg2.wait_for_timeout(800); pg2.screenshot(path=f"{OUT}/8b-restored.png", full_page=True)
+    assert "Restored 4 items" in pg2.inner_text("#toast"), pg2.inner_text("#toast")
     pg2.click("[data-act=home]"); pg2.wait_for_timeout(300)
     pg2.screenshot(path=f"{OUT}/9-dark-home.png")
     pg2.click(".proj"); pg2.wait_for_timeout(300)
     pg2.screenshot(path=f"{OUT}/10-dark-project.png")
-    print("restored total ->", pg2.inner_text(".big .n"))
+    assert pg2.inner_text(".big .n") == "24.5", "restored total"
+    c2.close()
     b.close()
 print("posts:", state["posts"], "page errors:", errors)
 assert not errors, errors
