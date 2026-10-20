@@ -15,7 +15,7 @@ app/icon-*.png            Home Screen icons
 backup-script/Code.gs     Apps Script: receives changes, writes the sheet, serves restore
 tests/gasmock.js          in-memory mock of SpreadsheetApp / ContentService / LockService
 tests/script.test.js      unit tests for Code.gs against the mock
-tests/e2e.py              Playwright run of the app at iPhone size against the mocked script
+tests/e2e.py              Playwright run of the app at iPhone size against the mocked script, plus sync scenarios (timeouts, restore, sheet changes) on a fake clock
 SETUP.md                  end-user setup guide (Sheet, GitHub Pages, iPhone install)
 ```
 
@@ -27,7 +27,7 @@ SETUP.md                  end-user setup guide (Sheet, GitHub Pages, iPhone inst
 - `sh.settings` is `{url, key}`, the Apps Script URL and its passphrase.
 - `sh.sync` is `{lastOk, lastError, lastTry}`.
 
-**Write path:** save to local storage first, then enqueue an op, then flush. Op types are `putProject`, `delProject`, `putEntry` and `delEntry`. Each item has at most one pending op. A newer op replaces the older one *in place*, which keeps projects ahead of their entries. A flush POSTs up to 150 ops as one batch, removes them from the outbox only after `{ok:true}`, and backs off exponentially from 15 s to 10 min. Every call to Google is aborted after 45 s (`fetchJson`), so a stalled request can't block later flushes. A timeout also cuts the next batch to a third (minimum 10), and each success doubles it back toward 150. It also retries when the phone comes back online and when the app returns to the foreground.
+**Write path:** save to local storage first, then enqueue an op, then flush. Op types are `putProject`, `delProject`, `putEntry` and `delEntry`. Each item has at most one pending op. A newer op replaces the older one *in place*, which usually keeps projects ahead of their entries. "Send everything again" can still queue a project after its pending entries, so the script fills in the project name on the Entries tab when the project arrives. A flush POSTs up to 150 ops as one batch, removes them from the outbox only after `{ok:true}`, and backs off exponentially from 15 s to 10 min. Every call to Google is aborted after 45 s (`fetchJson`), so a stalled request can't block later flushes. A timeout also cuts the next batch to a third (minimum 10), and each success doubles it back toward 150. It also retries when the phone comes back online and when the app returns to the foreground.
 
 **POST without a Content-Type header** (it is sent as text/plain) to avoid a CORS preflight, which Apps Script cannot answer. Keep it that way.
 
@@ -44,13 +44,13 @@ SETUP.md                  end-user setup guide (Sheet, GitHub Pages, iPhone inst
 3. Nothing is ever hard-deleted from the sheet. Deletions go to the `Deleted` tab.
 4. The app must fully work offline: opening, logging, editing and viewing totals.
 5. Any change to the storage format needs a migration that runs on load. Never require him to reinstall or re-enter data.
-6. Changing any file in `app/` means bumping `VERSION` in `sw.js`.
+6. Changing any file in `app/` means bumping `VERSION` in `sw.js`, and the matching `VERSION` in `index.html` (shown on the Backup screen).
 7. Changing `Code.gs` must stay backward compatible with the app version already on his phone.
 
 ## Known limitations
 
 - On iOS, a Safari tab and the Home Screen app have separate storage. He must always use the icon.
-- Deleting the Home Screen icon deletes local data. The fix is reinstalling and running Restore.
+- Deleting the Home Screen icon deletes local data. The fix is reinstalling and running Restore, but any changes still waiting in the outbox are gone.
 - Edits made by hand in the sheet don't flow back to the phone, except through Restore, and only when the sheet's row is newer.
 - Rows written by script versions before the always-`'` change may already have been converted by Sheets, for example a note of `3/4` stored as a date. That damage isn't undone automatically. Editing the entry on the phone rewrites the row correctly.
 - The backup key travels in the URL query on GET requests. That's acceptable for an hours log, but not for anything sensitive.
