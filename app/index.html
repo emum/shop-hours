@@ -1,0 +1,842 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Shop Hours</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Shop Hours">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#E6E8E5" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#1A1F22" media="(prefers-color-scheme: dark)">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" type="image/png" href="icon-192.png">
+<style>
+@font-face {
+  font-family: "Marker";
+  src: url("marker.woff2") format("woff2");
+  font-display: swap;
+}
+:root {
+  color-scheme: light dark;
+  --bg: #E6E8E5;
+  --surface: #F4F5F3;
+  --ink: #20262A;
+  --muted: #5B6468;
+  --line: #C8CCC8;
+  --tape: #E3CB86;
+  --tape-shade: #D3B970;
+  --tape-ink: #2A2A24;
+  --btn: #2C3438;
+  --btn-ink: #F4F5F3;
+  --warn: #B4472F;
+  --ok: #3D7653;
+  --focus: #3B6EA8;
+  --scrim: rgba(20, 24, 26, .45);
+  --safe-b: env(safe-area-inset-bottom, 0px);
+  --safe-t: env(safe-area-inset-top, 0px);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1A1F22;
+    --surface: #242A2E;
+    --ink: #E8EAE7;
+    --muted: #9AA3A7;
+    --line: #353C41;
+    --tape: #D2B970;
+    --tape-shade: #BFA55E;
+    --btn: #E8EAE7;
+    --btn-ink: #1A1F22;
+    --warn: #E07A5F;
+    --ok: #7FBF95;
+    --focus: #8DB7E8;
+    --scrim: rgba(0, 0, 0, .6);
+  }
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 17px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  -webkit-tap-highlight-color: transparent;
+  min-height: 100vh;
+}
+button, input, select, textarea { font: inherit; color: inherit; }
+:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+.num { font-variant-numeric: tabular-nums; }
+
+/* ---------- page frame ---------- */
+.page {
+  max-width: 560px;
+  margin: 0 auto;
+  padding: calc(var(--safe-t) + 14px) 16px calc(var(--safe-b) + 112px);
+}
+.topbar {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; min-height: 44px; margin-bottom: 6px;
+}
+.topbar h1 { font-size: 28px; line-height: 1.1; margin: 0; font-weight: 800; letter-spacing: -.01em; }
+.link {
+  background: none; border: 0; padding: 10px 4px; margin: -10px -4px;
+  color: var(--ink); font-weight: 600; text-decoration: underline;
+  text-underline-offset: 3px; text-decoration-thickness: 1px; cursor: pointer;
+}
+.back { text-decoration: none; display: inline-flex; align-items: center; gap: 4px; }
+.back svg { width: 12px; height: 20px; }
+
+/* ---------- backup status line ---------- */
+.status {
+  display: flex; gap: 8px; align-items: flex-start;
+  font-size: 15px; color: var(--muted); margin: 0 0 22px;
+}
+.status .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--ok); margin-top: 6px; flex: none; }
+.status.wait .dot { background: var(--tape-shade); }
+.status.bad { color: var(--warn); }
+.status.bad .dot { background: var(--warn); }
+.status button { font-size: 15px; }
+.alert {
+  border: 2px solid var(--warn); border-radius: 10px; padding: 14px 16px; margin: 0 0 22px;
+  background: var(--surface);
+}
+.alert p { margin: 0 0 10px; }
+.alert strong { color: var(--warn); }
+
+/* ---------- masking tape ---------- */
+.tape {
+  display: inline-block;
+  font-family: "Marker", "Marker Felt", "Comic Sans MS", cursive;
+  color: var(--tape-ink);
+  background:
+    repeating-linear-gradient(90deg, rgba(255,255,255,.10) 0 2px, transparent 2px 7px),
+    linear-gradient(180deg, rgba(255,255,255,.18), rgba(0,0,0,.05)),
+    var(--tape);
+  padding: 6px 22px 4px;
+  transform: rotate(-1.2deg);
+  clip-path: polygon(
+    0 6%, 3% 0, 5% 9%, 8% 2%, 10% 0, 100% 0, 97% 12%, 100% 24%, 98% 38%, 100% 52%, 97% 66%, 100% 80%, 98% 92%, 100% 100%,
+    0 100%, 2% 88%, 0 74%, 3% 60%, 0 46%, 2% 32%, 0 18%);
+  line-height: 1.25;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+.bar {
+  position: relative; height: 22px; margin: 10px 0 6px;
+  border: 1.5px dashed var(--line); border-radius: 3px;
+}
+.bar .fill {
+  position: absolute; left: -1.5px; top: -1.5px; bottom: -1.5px;
+  background:
+    repeating-linear-gradient(90deg, rgba(255,255,255,.12) 0 2px, transparent 2px 7px),
+    var(--tape);
+  clip-path: polygon(0 0, 100% 0, calc(100% - 4px) 22%, 100% 44%, calc(100% - 5px) 66%, 100% 84%, calc(100% - 3px) 100%, 0 100%);
+  min-width: 6px;
+}
+.bar.over { border-color: var(--warn); }
+.bar.over .fill { background: var(--warn); }
+
+/* ---------- project list ---------- */
+.projects { list-style: none; margin: 0; padding: 0; }
+.projects li { border-top: 1px solid var(--line); }
+.projects li:last-child { border-bottom: 1px solid var(--line); }
+.proj {
+  display: block; width: 100%; text-align: left; background: none; border: 0;
+  padding: 20px 2px 18px; cursor: pointer;
+}
+.proj .tape { font-size: 24px; margin-bottom: 12px; }
+.proj .line1 { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.proj .logged { font-size: 22px; font-weight: 800; }
+.proj .logged small { font-size: 15px; font-weight: 500; color: var(--muted); }
+.proj .left { font-size: 15px; color: var(--muted); text-align: right; }
+.proj .left.over { color: var(--warn); font-weight: 600; }
+.proj .last { font-size: 14px; color: var(--muted); }
+h2.section { font-size: 17px; font-weight: 700; margin: 34px 0 4px; color: var(--muted); }
+.empty { padding: 30px 0 10px; }
+.empty p { margin: 0 0 18px; color: var(--muted); }
+
+/* ---------- project detail ---------- */
+.headline { margin: 18px 0 8px; }
+.headline .tape { font-size: 34px; }
+.big { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-top: 18px; }
+.big .n { font-size: 52px; font-weight: 800; line-height: 1; letter-spacing: -.02em; }
+.big .lbl { font-size: 15px; color: var(--muted); margin-top: 4px; }
+.big .right { text-align: right; padding-bottom: 2px; }
+.big .right .n2 { font-size: 22px; font-weight: 700; }
+.big .right.over .n2 { color: var(--warn); }
+.pct { font-size: 14px; color: var(--muted); display: flex; justify-content: space-between; }
+.facts { display: flex; gap: 28px; margin: 18px 0 6px; font-size: 15px; color: var(--muted); }
+.facts b { display: block; color: var(--ink); font-size: 20px; }
+.month { display: flex; justify-content: space-between; font-weight: 700; margin: 30px 0 0; padding-bottom: 8px; border-bottom: 2px solid var(--ink); }
+.entries { list-style: none; margin: 0; padding: 0; }
+.entries li { border-bottom: 1px solid var(--line); }
+.entry { display: block; width: 100%; text-align: left; background: none; border: 0; padding: 14px 2px; cursor: pointer; }
+.entry .row { display: flex; justify-content: space-between; gap: 12px; font-weight: 600; }
+.entry .hrs { font-weight: 800; }
+.entry .note { color: var(--muted); margin-top: 3px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.entry .pending { font-size: 13px; color: var(--muted); font-style: italic; margin-top: 2px; }
+
+/* ---------- buttons ---------- */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  min-height: 52px; padding: 0 22px; border-radius: 12px; border: 0;
+  background: var(--btn); color: var(--btn-ink); font-weight: 700; font-size: 18px; cursor: pointer;
+}
+.btn.ghost { background: transparent; color: var(--ink); border: 1.5px solid var(--line); }
+.btn.danger { background: transparent; color: var(--warn); border: 1.5px solid var(--warn); }
+.btn.wide { width: 100%; }
+.btn:disabled { opacity: .5; }
+.dock {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 5;
+  padding: 12px 16px calc(var(--safe-b) + 12px);
+  background: linear-gradient(to top, var(--bg) 70%, transparent);
+}
+.dock .btn { width: 100%; max-width: 528px; display: flex; margin: 0 auto; min-height: 58px; font-size: 19px; }
+
+/* ---------- sheet (forms) ---------- */
+.scrim { position: fixed; inset: 0; background: var(--scrim); z-index: 10; display: none; }
+.scrim.open { display: block; }
+.sheet {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 11;
+  max-height: 92vh; overflow-y: auto; -webkit-overflow-scrolling: touch;
+  background: var(--surface); border-radius: 16px 16px 0 0;
+  padding: 10px 16px calc(var(--safe-b) + 18px);
+  transform: translateY(105%); transition: transform .22s ease-out;
+  visibility: hidden;
+}
+.sheet.open { transform: none; visibility: visible; }
+.sheet .inner { max-width: 528px; margin: 0 auto; }
+.grab { width: 40px; height: 5px; border-radius: 3px; background: var(--line); margin: 0 auto 14px; }
+.sheet h2 { margin: 0 0 14px; font-size: 22px; }
+.field { margin: 0 0 16px; }
+.field label { display: block; font-weight: 600; font-size: 15px; margin-bottom: 6px; }
+.field .hint { font-size: 14px; color: var(--muted); margin-top: 5px; }
+.input {
+  width: 100%; min-height: 50px; padding: 10px 12px; font-size: 18px;
+  border-radius: 10px; border: 1.5px solid var(--line); background: var(--bg);
+}
+textarea.input { min-height: 96px; resize: vertical; line-height: 1.35; }
+select.input { appearance: none; -webkit-appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+  background-position: calc(100% - 20px) 22px, calc(100% - 14px) 22px; background-size: 6px 6px; background-repeat: no-repeat; padding-right: 36px; }
+.stepper { display: flex; gap: 8px; }
+.stepper .input { text-align: center; font-size: 24px; font-weight: 800; }
+.stepper button { flex: none; width: 60px; min-height: 50px; border-radius: 10px; border: 1.5px solid var(--line); background: var(--bg); font-size: 24px; font-weight: 700; cursor: pointer; }
+.error { color: var(--warn); font-weight: 600; margin: 0 0 12px; }
+.actions { display: grid; gap: 10px; margin-top: 8px; }
+.actions .split { display: grid; grid-template-columns: 1fr 2fr; gap: 10px; }
+
+/* ---------- settings ---------- */
+.card { background: var(--surface); border-radius: 12px; padding: 16px; margin: 0 0 18px; }
+.card h2 { font-size: 19px; margin: 0 0 6px; }
+.card p { margin: 0 0 12px; color: var(--muted); font-size: 15px; }
+.card .btn { width: 100%; margin-top: 4px; }
+.kv { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-top: 1px solid var(--line); font-size: 15px; }
+.kv span:first-child { color: var(--muted); }
+.result { font-size: 15px; margin: 10px 0 0; }
+.result.ok { color: var(--ok); }
+.result.bad { color: var(--warn); }
+
+.toast {
+  position: fixed; left: 50%; bottom: calc(var(--safe-b) + 90px); z-index: 20;
+  transform: translate(-50%, 20px); opacity: 0; pointer-events: none;
+  background: var(--btn); color: var(--btn-ink); padding: 12px 18px; border-radius: 10px;
+  font-size: 15px; font-weight: 600; max-width: calc(100% - 32px); transition: opacity .2s, transform .2s;
+}
+.toast.show { opacity: 1; transform: translate(-50%, 0); }
+@media (prefers-reduced-motion: reduce) {
+  .sheet, .toast { transition: none; }
+}
+</style>
+</head>
+<body>
+<main id="app" class="page" aria-live="polite"></main>
+<div id="dock" class="dock" hidden></div>
+<div id="scrim" class="scrim"></div>
+<section id="sheet" class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title"><div class="inner" id="sheet-inner"></div></section>
+<div id="toast" class="toast" role="status"></div>
+
+<script>
+"use strict";
+/* =========================================================
+   Shop Hours
+   Everything is stored on the phone first, then every change
+   is sent to a Google Sheet. Changes that can't be sent yet
+   wait in a queue (also on the phone) and go out later.
+   ========================================================= */
+
+const VERSION = "1.0";
+const KEYS = { data: "sh.data", outbox: "sh.outbox", settings: "sh.settings", sync: "sh.sync" };
+
+/* ---------- storage ---------- */
+function load(key, fallback) {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : fallback;
+  } catch (e) { return fallback; }
+}
+function store(key, value) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+    return true;
+  } catch (e) {
+    toast("This phone wouldn't save the change. Free up some storage and try again.");
+    return false;
+  }
+}
+
+let data = load(KEYS.data, { projects: [], entries: [] });
+let outbox = load(KEYS.outbox, []);
+let settings = load(KEYS.settings, { url: "", key: "" });
+let sync = load(KEYS.sync, { lastOk: null, lastError: null, lastTry: null });
+
+/* ---------- small helpers ---------- */
+const $ = (s, el = document) => el.querySelector(s);
+const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+const nowIso = () => new Date().toISOString();
+const hrs = n => String(+(+n).toFixed(2));
+function todayStr() {
+  const d = new Date();
+  return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+}
+function parseDay(s) { const [y, m, d] = s.split("-").map(Number); return new Date(y, m - 1, d); }
+function dayLabel(s) { return parseDay(s).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }); }
+function monthLabel(s) { return parseDay(s).toLocaleDateString(undefined, { month: "long", year: "numeric" }); }
+function whenLabel(iso) {
+  const d = new Date(iso), t = new Date();
+  const time = d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  if (d.toDateString() === t.toDateString()) return "today at " + time;
+  return d.toLocaleDateString(undefined, { month: "short", day: "numeric" }) + " at " + time;
+}
+const plural = (n, word) => n + " " + word + (n === 1 ? "" : "s");
+let toastTimer;
+function toast(msg) {
+  const el = $("#toast");
+  el.textContent = msg;
+  el.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove("show"), 3200);
+}
+
+/* ---------- data access ---------- */
+const project = id => data.projects.find(p => p.id === id);
+const entriesFor = id => data.entries.filter(e => e.projectId === id);
+function totalFor(id) { return entriesFor(id).reduce((s, e) => s + (+e.hours || 0), 0); }
+function lastEntry(id) {
+  return entriesFor(id).sort((a, b) => b.date.localeCompare(a.date) || b.created.localeCompare(a.created))[0];
+}
+function saveData() { return store(KEYS.data, data); }
+
+function putProject(p) {
+  p.updated = nowIso();
+  const i = data.projects.findIndex(x => x.id === p.id);
+  if (i >= 0) data.projects[i] = p; else data.projects.push(p);
+  if (!saveData()) return false;
+  queue({ op: "putProject", project: p }, "p:" + p.id);
+  return true;
+}
+function removeProject(id) {
+  data.projects = data.projects.filter(p => p.id !== id);
+  if (!saveData()) return false;
+  queue({ op: "delProject", id }, "p:" + id);
+  return true;
+}
+function putEntry(e) {
+  e.updated = nowIso();
+  const i = data.entries.findIndex(x => x.id === e.id);
+  if (i >= 0) data.entries[i] = e; else data.entries.push(e);
+  if (!saveData()) return false;
+  queue({ op: "putEntry", entry: e }, "e:" + e.id);
+  return true;
+}
+function removeEntry(id) {
+  data.entries = data.entries.filter(e => e.id !== id);
+  if (!saveData()) return false;
+  queue({ op: "delEntry", id }, "e:" + id);
+  return true;
+}
+
+/* ---------- backup queue ---------- */
+// One pending change per item: a newer change replaces the older one in place,
+// so the order (project before its entries) is kept.
+function queue(op, key, noFlush) {
+  const item = { q: uid(), key, op };
+  const i = outbox.findIndex(x => x.key === key);
+  if (i >= 0) outbox[i] = item; else outbox.push(item);
+  store(KEYS.outbox, outbox);
+  if (!noFlush) flushSoon(0);
+}
+const isPending = key => outbox.some(x => x.key === key);
+const backupReady = () => !!(settings.url && settings.key);
+
+let flushing = false, flushTimer = null, retryDelay = 15000;
+function flushSoon(ms) {
+  clearTimeout(flushTimer);
+  flushTimer = setTimeout(flush, ms);
+}
+async function flush() {
+  if (flushing || !backupReady() || !outbox.length) { renderStatus(); return; }
+  flushing = true;
+  renderStatus();
+  const batch = outbox.slice(0, 150);
+  const sent = new Set(batch.map(x => x.q));
+  sync.lastTry = nowIso();
+  try {
+    const res = await fetch(settings.url, {
+      method: "POST",
+      body: JSON.stringify({ key: settings.key, ops: batch.map(x => x.op) }),
+    });
+    const out = await res.json().catch(() => { throw new Error("Google sent back something unexpected. Check the backup link."); });
+    if (!out.ok) throw new Error(out.error || "The backup sheet turned the change down.");
+    outbox = outbox.filter(x => !sent.has(x.q));
+    store(KEYS.outbox, outbox);
+    sync.lastOk = nowIso();
+    sync.lastError = null;
+    retryDelay = 15000;
+    if (outbox.length) flushSoon(250);
+  } catch (err) {
+    const offline = !navigator.onLine || /load failed|failed to fetch|network/i.test(String(err.message));
+    sync.lastError = offline ? "No connection right now. It will back up once the phone is online." : err.message;
+    flushSoon(retryDelay);
+    retryDelay = Math.min(retryDelay * 2, 10 * 60 * 1000);
+  } finally {
+    flushing = false;
+    store(KEYS.sync, sync);
+    renderStatus();
+    if (route().name !== "settings") renderPendingMarks();
+  }
+}
+window.addEventListener("online", () => { retryDelay = 15000; flushSoon(0); });
+document.addEventListener("visibilitychange", () => { if (!document.hidden) flushSoon(300); });
+
+async function callSheet(action) {
+  const sep = settings.url.includes("?") ? "&" : "?";
+  const url = settings.url + sep + "key=" + encodeURIComponent(settings.key) + (action ? "&action=" + action : "");
+  const res = await fetch(url);
+  const out = await res.json().catch(() => { throw new Error("That link didn't answer like the backup script. Copy the Web app URL again from Apps Script."); });
+  if (!out.ok) throw new Error(out.error || "The backup sheet returned an error.");
+  return out;
+}
+
+/* ---------- routing ---------- */
+function route() {
+  const h = location.hash.replace(/^#\/?/, "");
+  if (h.startsWith("p/")) return { name: "project", id: decodeURIComponent(h.slice(2)) };
+  if (h === "backup") return { name: "settings" };
+  return { name: "home" };
+}
+function go(hash) { location.hash = hash; }
+window.addEventListener("hashchange", () => { closeSheet(); render(); window.scrollTo(0, 0); });
+
+/* ---------- rendering ---------- */
+function render() {
+  const r = route();
+  if (r.name === "project" && !project(r.id)) { go("#/"); return; }
+  if (r.name === "home") renderHome();
+  else if (r.name === "project") renderProject(r.id);
+  else renderSettings();
+  renderStatus();
+}
+
+function statusHtml() {
+  const n = outbox.length;
+  if (!backupReady()) {
+    return `<div class="alert" id="status"><p><strong>Backup isn't set up.</strong> Entries are only on this phone until it is.</p>
+      <button class="btn ghost wide" data-act="settings">Set up backup</button></div>`;
+  }
+  if (n && sync.lastError) {
+    return `<div class="status bad" id="status"><span class="dot"></span><span>${plural(n, "change")} waiting to back up. ${esc(sync.lastError)}
+      <button class="link" data-act="retry">Try now</button></span></div>`;
+  }
+  if (n || flushing) return `<div class="status wait" id="status"><span class="dot"></span><span>Backing up to Google Sheets…</span></div>`;
+  return `<div class="status" id="status"><span class="dot"></span><span>${sync.lastOk ? "Everything backed up, " + esc(whenLabel(sync.lastOk)) : "Backup is on. New entries go to Google Sheets as you save them."}</span></div>`;
+}
+function renderStatus() {
+  const el = $("#status");
+  if (el) el.outerHTML = statusHtml();
+  if (route().name === "settings") renderSettingsStatus();
+}
+function renderPendingMarks() {
+  document.querySelectorAll("[data-pending]").forEach(el => {
+    el.hidden = !isPending(el.getAttribute("data-pending"));
+  });
+}
+
+function progressHtml(logged, est) {
+  if (!est) return "";
+  const over = logged > est;
+  const pct = Math.min(100, (logged / est) * 100);
+  return `<div class="bar${over ? " over" : ""}" role="img" aria-label="${Math.round((logged / est) * 100)} percent of estimate">
+    <div class="fill" style="width:calc(${pct}% + 3px)"></div></div>`;
+}
+function leftText(logged, est) {
+  if (!est) return { text: "No estimate", over: false };
+  const left = est - logged;
+  if (left < 0) return { text: hrs(-left) + " hrs over estimate", over: true };
+  return { text: hrs(left) + " of " + hrs(est) + " hrs left", over: false };
+}
+
+function renderHome() {
+  setDock(data.projects.some(p => p.status !== "done")
+    ? `<button class="btn" data-act="log">Log hours</button>` : "");
+  const active = data.projects.filter(p => p.status !== "done");
+  const done = data.projects.filter(p => p.status === "done");
+  const byRecent = (a, b) => ((lastEntry(b.id) || {}).date || b.created).localeCompare((lastEntry(a.id) || {}).date || a.created);
+  active.sort(byRecent); done.sort(byRecent);
+
+  const item = p => {
+    const logged = totalFor(p.id), l = leftText(logged, p.est), last = lastEntry(p.id);
+    return `<li><button class="proj" data-act="open" data-id="${esc(p.id)}">
+      <span class="tape">${esc(p.name)}</span>
+      <div class="line1"><span class="logged num">${hrs(logged)} <small>hrs logged</small></span>
+        <span class="left num${l.over ? " over" : ""}">${esc(l.text)}</span></div>
+      ${progressHtml(logged, p.est)}
+      <div class="last">${last ? "Last worked " + esc(dayLabel(last.date)) : "No hours logged yet"}</div>
+    </button></li>`;
+  };
+
+  let body;
+  if (!data.projects.length) {
+    body = `<div class="empty"><p>Add the car or job you're working on, with a rough estimate of the total hours if you have one. Then log time against it each day.</p>
+      <button class="btn" data-act="new-project">Add a project</button></div>`;
+  } else {
+    body = (active.length ? `<ul class="projects">${active.map(item).join("")}</ul>` : `<p class="empty">No active projects.</p>`) +
+      `<p style="margin:22px 0 0"><button class="link" data-act="new-project">Add a project</button></p>` +
+      (done.length ? `<h2 class="section">Finished</h2><ul class="projects">${done.map(item).join("")}</ul>` : "");
+  }
+  $("#app").innerHTML = `<header class="topbar"><h1>Shop Hours</h1><button class="link" data-act="settings">Backup</button></header>
+    ${statusHtml()}${body}`;
+}
+
+function renderProject(id) {
+  const p = project(id);
+  const list = entriesFor(id).sort((a, b) => b.date.localeCompare(a.date) || b.created.localeCompare(a.created));
+  const logged = totalFor(id), l = leftText(logged, p.est);
+  const weekAgo = new Date(); weekAgo.setHours(0, 0, 0, 0); weekAgo.setDate(weekAgo.getDate() - 6);
+  const week = list.filter(e => parseDay(e.date) >= weekAgo).reduce((s, e) => s + (+e.hours || 0), 0);
+  const days = new Set(list.map(e => e.date)).size;
+  setDock(p.status === "done" ? "" : `<button class="btn" data-act="log" data-id="${esc(id)}">Log hours</button>`);
+
+  let months = "", cur = null, group = [];
+  const flushGroup = () => {
+    if (!group.length) return;
+    const sum = group.reduce((s, e) => s + (+e.hours || 0), 0);
+    months += `<div class="month"><span>${esc(monthLabel(group[0].date))}</span><span class="num">${hrs(sum)} hrs</span></div>
+      <ul class="entries">${group.map(e => `<li><button class="entry" data-act="edit-entry" data-id="${esc(e.id)}">
+        <div class="row"><span>${esc(dayLabel(e.date))}</span><span class="hrs num">${hrs(e.hours)} hrs</span></div>
+        ${e.note ? `<div class="note">${esc(e.note)}</div>` : ""}
+        <div class="pending" data-pending="e:${esc(e.id)}" ${isPending("e:" + e.id) ? "" : "hidden"}>Not backed up yet</div>
+      </button></li>`).join("")}</ul>`;
+    group = [];
+  };
+  list.forEach(e => { const m = e.date.slice(0, 7); if (m !== cur) { flushGroup(); cur = m; } group.push(e); });
+  flushGroup();
+
+  $("#app").innerHTML = `<header class="topbar"><button class="link back" data-act="home">
+      <svg viewBox="0 0 12 20" aria-hidden="true"><path d="M10 2 2 10l8 8" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>Projects</button>
+      <button class="link" data-act="edit-project" data-id="${esc(id)}">Edit project</button></header>
+    ${statusHtml()}
+    <div class="headline"><span class="tape">${esc(p.name)}</span>${p.status === "done" ? ` <span style="color:var(--muted);font-weight:600;margin-left:6px">Finished</span>` : ""}</div>
+    <div class="big">
+      <div><div class="n num">${hrs(logged)}</div><div class="lbl">hours logged</div></div>
+      ${p.est ? `<div class="right${l.over ? " over" : ""}"><div class="n2 num">${l.over ? hrs(logged - p.est) + " over" : hrs(p.est - logged) + " left"}</div>
+        <div class="lbl num">of ${hrs(p.est)} hr estimate</div></div>`
+        : `<div class="right"><button class="link" data-act="edit-project" data-id="${esc(id)}">Add an estimate</button></div>`}
+    </div>
+    ${progressHtml(logged, p.est)}
+    ${p.est ? `<div class="pct num"><span>${Math.round(logged / p.est * 100)}% of estimate</span><span></span></div>` : ""}
+    <div class="facts"><div><b class="num">${hrs(week)}</b>last 7 days</div><div><b class="num">${days}</b>${days === 1 ? "day" : "days"} worked</div></div>
+    ${list.length ? months : `<p class="empty" style="color:var(--muted)">No hours logged on this project yet.</p>`}`;
+}
+
+/* ---------- settings ---------- */
+function renderSettings() {
+  setDock("");
+  $("#app").innerHTML = `<header class="topbar"><button class="link back" data-act="home">
+      <svg viewBox="0 0 12 20" aria-hidden="true"><path d="M10 2 2 10l8 8" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>Projects</button></header>
+    <h1 style="font-size:28px;margin:6px 0 18px">Backup</h1>
+    <div class="card">
+      <h2>Google Sheets link</h2>
+      <p>Paste the backup link and key you were given. Every entry is sent to the sheet as soon as you save it.</p>
+      <form id="setup-form">
+        <div class="field"><label for="f-url">Backup link</label>
+          <input class="input" id="f-url" type="url" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false"
+            placeholder="https://script.google.com/macros/s/…/exec" value="${esc(settings.url)}"></div>
+        <div class="field"><label for="f-key">Backup key</label>
+          <input class="input" id="f-key" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" value="${esc(settings.key)}"></div>
+        <button class="btn" type="submit">Save and test</button>
+        <div id="test-result" class="result" aria-live="polite"></div>
+      </form>
+    </div>
+    <div class="card" id="sync-card"></div>
+    <div class="card">
+      <h2>Restore from Google Sheets</h2>
+      <p>Use this on a new phone, or if the app was deleted and reinstalled. It brings back every project and entry saved in the sheet.</p>
+      <button class="btn ghost" data-act="restore">Restore from Google Sheets</button>
+    </div>
+    <div class="card">
+      <h2>Send everything again</h2>
+      <p>Re-sends every project and entry to the sheet. Use it if rows were removed from the sheet by hand.</p>
+      <button class="btn ghost" data-act="resend">Send everything again</button>
+    </div>
+    <div class="card">
+      <h2>Export a spreadsheet file</h2>
+      <p>Saves all entries as a CSV file you can keep in Files, email, or open in Numbers or Excel.</p>
+      <button class="btn ghost" data-act="export">Export CSV</button>
+    </div>
+    <p style="color:var(--muted);font-size:14px;text-align:center">Shop Hours ${VERSION}</p>`;
+  $("#setup-form").addEventListener("submit", onSetupSubmit);
+  renderSettingsStatus();
+}
+function renderSettingsStatus() {
+  const el = $("#sync-card");
+  if (!el) return;
+  const persisted = window.__persisted;
+  el.innerHTML = `<h2>Status</h2>
+    <div class="kv"><span>Waiting to back up</span><span class="num">${plural(outbox.length, "change")}</span></div>
+    <div class="kv"><span>Last backup</span><span>${sync.lastOk ? esc(whenLabel(sync.lastOk)) : "Not yet"}</span></div>
+    ${sync.lastError && outbox.length ? `<div class="kv"><span>Problem</span><span style="color:var(--warn);text-align:right">${esc(sync.lastError)}</span></div>` : ""}
+    <div class="kv"><span>On this phone</span><span class="num">${plural(data.projects.length, "project")}, ${plural(data.entries.length, "entry").replace("entrys", "entries")}</span></div>
+    ${persisted === false ? `<div class="kv"><span>Phone storage</span><span>Standard</span></div>` : ""}
+    ${outbox.length && backupReady() ? `<button class="btn ghost" data-act="retry" style="margin-top:12px">Back up now</button>` : ""}`;
+}
+async function onSetupSubmit(ev) {
+  ev.preventDefault();
+  const url = $("#f-url").value.trim(), key = $("#f-key").value.trim();
+  const out = $("#test-result");
+  if (!/^https:\/\/script\.google(usercontent)?\.com\//.test(url)) {
+    out.className = "result bad";
+    out.textContent = "That doesn't look like a Google Apps Script link. It should start with https://script.google.com/macros/s/";
+    return;
+  }
+  if (!key) { out.className = "result bad"; out.textContent = "Enter the backup key."; return; }
+  settings = { url, key };
+  store(KEYS.settings, settings);
+  out.className = "result"; out.textContent = "Testing the connection…";
+  try {
+    const r = await callSheet("");
+    out.className = "result ok";
+    out.textContent = `Connected to "${r.sheet}". The sheet has ${plural(r.projects, "project")} and ${r.entries} ${r.entries === 1 ? "entry" : "entries"}.`;
+    if (!sync.lastOk && (data.projects.length || data.entries.length)) resendAll(true);
+    if (!data.projects.length && (r.projects || r.entries)) {
+      out.textContent += " Tap Restore below to bring them onto this phone.";
+    }
+    flushSoon(0);
+  } catch (err) {
+    out.className = "result bad";
+    out.textContent = /load failed|failed to fetch|network/i.test(err.message)
+      ? "Couldn't reach Google. Check the link and that the phone is online." : err.message;
+  }
+}
+function resendAll(quiet) {
+  data.projects.forEach(p => queue({ op: "putProject", project: p }, "p:" + p.id, true));
+  data.entries.forEach(e => queue({ op: "putEntry", entry: e }, "e:" + e.id, true));
+  if (!quiet) toast("Sending " + plural(data.projects.length + data.entries.length, "item") + " to the sheet.");
+  flushSoon(0);
+}
+async function restore() {
+  if (!backupReady()) { toast("Set up the backup link first."); return; }
+  if (!confirm("Bring back everything saved in Google Sheets? Nothing on this phone will be removed.")) return;
+  try {
+    const r = await callSheet("export");
+    let added = 0;
+    const merge = (list, incoming) => incoming.forEach(x => {
+      const i = list.findIndex(y => y.id === x.id);
+      if (i < 0) { list.push(x); added++; }
+      else if ((x.updated || "") > (list[i].updated || "")) list[i] = x;
+    });
+    merge(data.projects, r.projects);
+    merge(data.entries, r.entries);
+    saveData();
+    toast(added ? "Restored " + plural(added, "item") + " from Google Sheets." : "This phone already had everything in the sheet.");
+    render();
+  } catch (err) {
+    toast(/load failed|failed to fetch|network/i.test(err.message) ? "Couldn't reach Google. Check the connection and try again." : err.message);
+  }
+}
+async function exportCsv() {
+  const cell = v => /[",\n]/.test(String(v)) ? '"' + String(v).replace(/"/g, '""') + '"' : String(v);
+  const rows = [["Date", "Project", "Hours", "Note"]].concat(
+    data.entries.slice().sort((a, b) => a.date.localeCompare(b.date))
+      .map(e => [e.date, (project(e.projectId) || {}).name || "", hrs(e.hours), e.note || ""]));
+  const csv = rows.map(r => r.map(cell).join(",")).join("\r\n");
+  const name = "shop-hours-" + todayStr() + ".csv";
+  const file = new File([csv], name, { type: "text/csv" });
+  try {
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({ files: [file], title: name });
+      return;
+    }
+  } catch (e) { if (e.name === "AbortError") return; }
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(file); a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+}
+
+/* ---------- sheets (forms) ---------- */
+let lastFocus = null;
+function openSheet(html) {
+  lastFocus = document.activeElement;
+  $("#sheet-inner").innerHTML = `<div class="grab"></div>` + html;
+  $("#scrim").classList.add("open");
+  $("#sheet").classList.add("open");
+  document.body.style.overflow = "hidden";
+}
+function closeSheet() {
+  $("#scrim").classList.remove("open");
+  $("#sheet").classList.remove("open");
+  document.body.style.overflow = "";
+  if (lastFocus && lastFocus.focus) lastFocus.focus();
+}
+$("#scrim").addEventListener("click", closeSheet);
+document.addEventListener("keydown", e => { if (e.key === "Escape") closeSheet(); });
+
+function entryForm(entry, projectId) {
+  const editing = !!entry;
+  const active = data.projects.filter(p => p.status !== "done" || (entry && p.id === entry.projectId) || p.id === projectId);
+  const pid = entry ? entry.projectId : (projectId || (active[0] || {}).id);
+  openSheet(`<h2 id="sheet-title">${editing ? "Edit entry" : "Log hours"}</h2>
+    <form id="entry-form" novalidate>
+      <div class="field"><label for="e-proj">Project</label>
+        <select class="input" id="e-proj">${active.map(p => `<option value="${esc(p.id)}"${p.id === pid ? " selected" : ""}>${esc(p.name)}</option>`).join("")}</select></div>
+      <div class="field"><label for="e-date">Date</label>
+        <input class="input" id="e-date" type="date" value="${esc(entry ? entry.date : todayStr())}" max="${todayStr()}"></div>
+      <div class="field"><label for="e-hours">Hours</label>
+        <div class="stepper"><button type="button" data-step="-0.5" aria-label="Half an hour less">−</button>
+          <input class="input num" id="e-hours" inputmode="decimal" autocomplete="off" value="${entry ? hrs(entry.hours) : ""}" placeholder="0">
+          <button type="button" data-step="0.5" aria-label="Half an hour more">+</button></div></div>
+      <div class="field"><label for="e-note">What got done</label>
+        <textarea class="input" id="e-note" placeholder="Blocked door and trunk jams with 120">${esc(entry ? entry.note : "")}</textarea></div>
+      <p class="error" id="e-error" hidden></p>
+      <div class="actions">
+        <div class="split"><button type="button" class="btn ghost" data-act="close">Cancel</button>
+          <button type="submit" class="btn">${editing ? "Save changes" : "Save entry"}</button></div>
+        ${editing ? `<button type="button" class="btn danger" data-act="delete-entry" data-id="${esc(entry.id)}">Delete entry</button>` : ""}
+      </div>
+    </form>`);
+  $("#entry-form").addEventListener("submit", ev => {
+    ev.preventDefault();
+    const err = $("#e-error");
+    const hoursVal = parseFloat(String($("#e-hours").value).replace(",", "."));
+    const date = $("#e-date").value, projectIdVal = $("#e-proj").value;
+    let msg = "";
+    if (!projectIdVal) msg = "Pick a project.";
+    else if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) msg = "Pick a date.";
+    else if (!(hoursVal > 0)) msg = "Enter the hours worked.";
+    else if (hoursVal > 24) msg = "That's more than 24 hours in one day. Split it across the days it was worked.";
+    if (msg) { err.textContent = msg; err.hidden = false; return; }
+    const e = entry ? Object.assign({}, entry) : { id: uid(), created: nowIso() };
+    Object.assign(e, { projectId: projectIdVal, date, hours: Math.round(hoursVal * 100) / 100, note: $("#e-note").value.trim() });
+    if (!putEntry(e)) return;
+    closeSheet();
+    toast(editing ? "Changes saved." : "Saved " + hrs(e.hours) + " hrs on " + project(e.projectId).name + ".");
+    render();
+  });
+  if (!editing) setTimeout(() => $("#e-hours").focus(), 250);
+}
+
+function projectForm(p) {
+  const editing = !!p;
+  const count = p ? entriesFor(p.id).length : 0;
+  openSheet(`<h2 id="sheet-title">${editing ? "Edit project" : "New project"}</h2>
+    <form id="project-form" novalidate>
+      <div class="field"><label for="p-name">Name</label>
+        <input class="input" id="p-name" autocomplete="off" value="${esc(p ? p.name : "")}" placeholder="AMX"></div>
+      <div class="field"><label for="p-est">Estimated total hours</label>
+        <input class="input num" id="p-est" inputmode="decimal" autocomplete="off" value="${p && p.est ? hrs(p.est) : ""}" placeholder="Optional">
+        <div class="hint">A rough guess is fine. You can change it any time as the job comes into focus.</div></div>
+      <p class="error" id="p-error" hidden></p>
+      <div class="actions">
+        <div class="split"><button type="button" class="btn ghost" data-act="close">Cancel</button>
+          <button type="submit" class="btn">${editing ? "Save changes" : "Add project"}</button></div>
+        ${editing ? `<button type="button" class="btn ghost" data-act="toggle-done" data-id="${esc(p.id)}">${p.status === "done" ? "Move back to active" : "Mark as finished"}</button>` : ""}
+        ${editing && !count ? `<button type="button" class="btn danger" data-act="delete-project" data-id="${esc(p.id)}">Delete project</button>` : ""}
+      </div>
+    </form>`);
+  $("#project-form").addEventListener("submit", ev => {
+    ev.preventDefault();
+    const name = $("#p-name").value.trim();
+    const estRaw = $("#p-est").value.trim().replace(",", ".");
+    const est = estRaw ? parseFloat(estRaw) : null;
+    const err = $("#p-error");
+    let msg = "";
+    if (!name) msg = "Give the project a name.";
+    else if (estRaw && !(est > 0)) msg = "The estimate should be a number of hours, like 400.";
+    if (msg) { err.textContent = msg; err.hidden = false; return; }
+    const np = p ? Object.assign({}, p) : { id: uid(), created: nowIso(), status: "active" };
+    Object.assign(np, { name, est: est ? Math.round(est * 100) / 100 : null });
+    if (!putProject(np)) return;
+    closeSheet();
+    if (!editing) go("#/p/" + encodeURIComponent(np.id)); else render();
+    toast(editing ? "Changes saved." : "Added " + name + ".");
+  });
+  if (!editing) setTimeout(() => $("#p-name").focus(), 250);
+}
+
+function setDock(html) {
+  const d = $("#dock");
+  d.innerHTML = html;
+  d.hidden = !html;
+}
+
+/* ---------- one click handler for everything ---------- */
+document.addEventListener("click", ev => {
+  const step = ev.target.closest("[data-step]");
+  if (step) {
+    const inp = $("#e-hours");
+    const v = Math.max(0, (parseFloat(inp.value.replace(",", ".")) || 0) + parseFloat(step.dataset.step));
+    inp.value = hrs(v);
+    return;
+  }
+  const el = ev.target.closest("[data-act]");
+  if (!el) return;
+  const id = el.dataset.id;
+  switch (el.dataset.act) {
+    case "home": go("#/"); break;
+    case "settings": go("#/backup"); break;
+    case "open": go("#/p/" + encodeURIComponent(id)); break;
+    case "log":
+      if (!data.projects.some(p => p.status !== "done")) { projectForm(); break; }
+      entryForm(null, id); break;
+    case "new-project": projectForm(); break;
+    case "edit-project": projectForm(project(id)); break;
+    case "edit-entry": entryForm(data.entries.find(e => e.id === id)); break;
+    case "close": closeSheet(); break;
+    case "retry": retryDelay = 15000; sync.lastError = null; flushSoon(0); break;
+    case "restore": restore(); break;
+    case "resend": resendAll(); break;
+    case "export": exportCsv(); break;
+    case "delete-entry":
+      if (confirm("Delete this entry? A copy is kept on the Deleted tab of the Google Sheet.")) {
+        removeEntry(id); closeSheet(); toast("Entry deleted."); render();
+      }
+      break;
+    case "toggle-done": {
+      const p = Object.assign({}, project(id));
+      p.status = p.status === "done" ? "active" : "done";
+      putProject(p); closeSheet(); render();
+      toast(p.status === "done" ? p.name + " moved to Finished." : p.name + " is active again.");
+      break;
+    }
+    case "delete-project":
+      if (confirm("Delete this project?")) { removeProject(id); closeSheet(); go("#/"); toast("Project deleted."); }
+      break;
+  }
+});
+
+/* ---------- start ---------- */
+render();
+flushSoon(500);
+if (navigator.storage && navigator.storage.persist) {
+  navigator.storage.persist().then(ok => { window.__persisted = ok; }).catch(() => {});
+}
+if ("serviceWorker" in navigator && location.protocol === "https:") {
+  navigator.serviceWorker.register("sw.js").catch(() => {});
+}
+</script>
+</body>
+</html>

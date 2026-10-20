@@ -1,0 +1,78 @@
+# Shop Hours
+
+A small iPhone app for logging hours worked on car body and paint projects (for example "AMX, 10/16/2026, 10 hrs, blocked 120 door/trunk jams"), with an optional estimated total for each project so the user can see how much is left. There is exactly one real user. He works in a garage that may not have a signal. **His data must never be lost.** That rule outranks every other consideration in this repo.
+
+## Current state (v1.0)
+
+It's a Home Screen web app: no build step, vanilla JS, served from GitHub Pages. Every change is backed up automatically to a Google Sheet through a Google Apps Script web app.
+
+```
+app/index.html            the whole app: markup, CSS, JS in one file
+app/sw.js                 offline cache (cache-first for app files, network for Google)
+app/manifest.webmanifest  install metadata
+app/marker.woff2          Permanent Marker font (SIL OFL), used for project names
+app/icon-*.png            Home Screen icons
+backup-script/Code.gs     Apps Script: receives changes, writes the sheet, serves restore
+tests/gasmock.js          in-memory mock of SpreadsheetApp / ContentService / LockService
+tests/script.test.js      unit tests for Code.gs against the mock
+tests/e2e.py              Playwright run of the app at iPhone size against the mocked script
+SETUP.md                  end-user setup guide (Sheet, GitHub Pages, iPhone install)
+```
+
+## How it works
+
+**Data model** (all in `localStorage`):
+- `sh.data` holds `{projects:[{id,name,est|null,status:'active'|'done',created,updated}], entries:[{id,projectId,date:'YYYY-MM-DD',hours,note,created,updated}]}`. IDs are client-generated. Timestamps are ISO.
+- `sh.outbox` is the queue of pending backup operations, `[{q, key:'p:<id>'|'e:<id>', op}]`.
+- `sh.settings` is `{url, key}`, the Apps Script URL and its passphrase.
+- `sh.sync` is `{lastOk, lastError, lastTry}`.
+
+**Write path:** save to local storage first, then enqueue an op, then flush. Op types are `putProject`, `delProject`, `putEntry` and `delEntry`. Each item has at most one pending op. A newer op replaces the older one *in place*, which keeps projects ahead of their entries. A flush POSTs up to 150 ops as one batch, removes them from the outbox only after `{ok:true}`, and backs off exponentially from 15 s to 10 min. It also retries when the phone comes back online and when the app returns to the foreground.
+
+**POST without a Content-Type header** (it is sent as text/plain) to avoid a CORS preflight, which Apps Script cannot answer. Keep it that way.
+
+**Script side:** it checks `APP_KEY` and takes a script lock. Rows are upserted by ID, and an incoming op is skipped if the sheet's `Updated` value is newer, so the last writer wins by `updated`. A delete copies the row to the `Deleted` tab before removing it. Text starting with `= + - @` is prefixed with `'` so it can't become a formula. The Projects tab has live `SUMIF` columns for logged hours and hours left. A rename rewrites the project name on the Entries tab.
+
+**Restore:** `GET ?key=…&action=export` returns everything. The app merges it in by ID, keeping the newer `updated` value, and never deletes anything on the phone.
+
+## Invariants (do not break these)
+
+1. Never remove an outbox item until the server has confirmed it.
+2. Never delete or overwrite local data from a sync or restore without a newer `updated` value.
+3. Nothing is ever hard-deleted from the sheet. Deletions go to the `Deleted` tab.
+4. The app must fully work offline: opening, logging, editing and viewing totals.
+5. Any change to the storage format needs a migration that runs on load. Never require him to reinstall or re-enter data.
+6. Changing any file in `app/` means bumping `VERSION` in `sw.js`.
+7. Changing `Code.gs` must stay backward compatible with the app version already on his phone.
+
+## Known limitations
+
+- On iOS, a Safari tab and the Home Screen app have separate storage. He must always use the icon.
+- Deleting the Home Screen icon deletes local data. The fix is reinstalling and running Restore.
+- Edits made by hand in the sheet don't flow back to the phone, except through Restore, and only when the sheet's row is newer.
+- The backup key travels in the URL query on GET requests. That's acceptable for an hours log, but not for anything sensitive.
+- Persistence: the app calls `navigator.storage.persist()`. On iOS, data for Home Screen apps isn't subject to the 7-day eviction.
+
+## Running and testing
+
+```bash
+# serve the app locally
+python3 -m http.server 8765 --directory app      # then open http://localhost:8765
+
+# backup script unit tests (Node 18+)
+node tests/script.test.js
+
+# end-to-end at iPhone size (pip install playwright && playwright install chromium)
+cd tests && python3 e2e.py                       # screenshots land in tests/shots/
+```
+
+The service worker only registers over HTTPS, so local runs have no offline caching. To test the real thing on a phone, deploy to GitHub Pages or use an HTTPS tunnel.
+
+Run both test suites before calling any change done. Extend them whenever you touch sync, restore or `Code.gs`.
+
+## Conventions
+
+- **No build step and no framework** for the web app unless a decision is made to change that. Keep `index.html` self-contained.
+- **UI copy:** plain verbs, sentence case, written for someone in a garage with dirty hands. The button that says "Save entry" leads to "Saved…". Errors say what happened and what to do.
+- **Design:** cool shop-gray background, project names on "masking tape" strips in a marker font, and the progress bar is also tape. Large tap targets (52 px and up) and tabular numbers. Supports light and dark mode and reduced motion.
+- **Deploys:** for Apps Script, use Manage deployments, edit, then New version, so the URL stays the same. For the app, push to the Pages branch.

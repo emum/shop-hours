@@ -1,0 +1,82 @@
+// Minimal Apps Script mock: enough of SpreadsheetApp etc. to run Code.gs.
+const fs = require("fs");
+const vm = require("vm");
+
+function cellIn(v) {
+  if (typeof v === "string") {
+    if (v.startsWith("'")) return v.slice(1);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return new Date(v + "T00:00:00Z");
+  }
+  return v;
+}
+class Range {
+  constructor(sh, r, c, nr, nc) { Object.assign(this, { sh, r, c, nr, nc }); }
+  getValues() {
+    const out = [];
+    for (let i = 0; i < this.nr; i++) {
+      const row = [];
+      for (let j = 0; j < this.nc; j++) {
+        const v = (this.sh.rows[this.r - 1 + i] || [])[this.c - 1 + j];
+        row.push(v === undefined ? "" : v);
+      }
+      out.push(row);
+    }
+    return out;
+  }
+  getValue() { return this.getValues()[0][0]; }
+  setValues(vals) {
+    vals.forEach((row, i) => row.forEach((v, j) => {
+      const rr = this.r - 1 + i;
+      while (this.sh.rows.length <= rr) this.sh.rows.push([]);
+      this.sh.rows[rr][this.c - 1 + j] = cellIn(v);
+    }));
+    return this;
+  }
+  setValue(v) { return this.setValues([[v]]); }
+  setFontWeight() { return this; } setNumberFormat() { return this; } setWrap() { return this; }
+}
+class Sheet {
+  constructor(name) { this.name = name; this.rows = []; }
+  getName() { return this.name; }
+  getLastRow() {
+    for (let i = this.rows.length - 1; i >= 0; i--) if ((this.rows[i] || []).some(v => v !== "" && v !== undefined)) return i + 1;
+    return 0;
+  }
+  getRange(r, c, nr = 1, nc = 1) { if (typeof r === "string") return new Range(this, 1, 1, 0, 0); return new Range(this, r, c, nr, nc); }
+  appendRow(row) { this.rows[this.getLastRow()] = row.map(cellIn); }
+  deleteRow(r) { this.rows.splice(r - 1, 1); }
+  setFrozenRows() {} setColumnWidth() {}
+}
+function makeSpreadsheet() {
+  const sheets = [new Sheet("Sheet1")];
+  return {
+    sheets,
+    getName: () => "Shop Hours Backup",
+    getSpreadsheetTimeZone: () => "UTC",
+    getSheetByName: n => sheets.find(s => s.name === n) || null,
+    insertSheet: n => { const s = new Sheet(n); sheets.push(s); return s; },
+    getSheets: () => sheets.slice(),
+    deleteSheet: s => sheets.splice(sheets.indexOf(s), 1),
+  };
+}
+function loadScript(path, key) {
+  const ss = makeSpreadsheet();
+  const ctx = {
+    SpreadsheetApp: { getActiveSpreadsheet: () => ss },
+    LockService: { getScriptLock: () => ({ waitLock() {}, releaseLock() {} }) },
+    ContentService: { MimeType: { JSON: "json" }, createTextOutput: s => ({ s, setMimeType() { return this; } }) },
+    Utilities: { formatDate: d => d.toISOString().slice(0, 10) },
+    Session: { getScriptTimeZone: () => "UTC" },
+    console, Date,
+  };
+  vm.createContext(ctx);
+  let src = fs.readFileSync(path, "utf8");
+  if (key) src = src.replace("const APP_KEY = 'CHANGE-ME';", "const APP_KEY = " + JSON.stringify(key) + ";");
+  vm.runInContext(src, ctx);
+  return {
+    ss,
+    get: params => JSON.parse(ctx.doGet({ parameter: params }).s),
+    post: body => JSON.parse(ctx.doPost({ postData: { contents: typeof body === "string" ? body : JSON.stringify(body) } }).s),
+  };
+}
+module.exports = { loadScript };
