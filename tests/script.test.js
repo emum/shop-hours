@@ -40,4 +40,20 @@ assert.match(g.post("not json").error, /not readable/);
 const many = Array.from({ length: 300 }, (_, i) => ({ op: "putEntry", entry: { ...E1, id: "b" + i, hours: 1, updated: t(9) } }));
 g.post({ key: "amx70", ops: many }); g.post({ key: "amx70", ops: many });
 assert.strictEqual(ent.getLastRow(), 302);
+// text comes back exactly as typed, even when Sheets would read it as something else
+g = loadScript(S, "k");
+const odd = ["3/4", "TRUE", "007", "'70 AMX", "-1", "@home", "=SUM(A1)", "plain"];
+g.post({ key: "k", ops: [{ op: "putProject", project: { ...P, name: "'70 AMX" } }].concat(
+  odd.map((note, i) => ({ op: "putEntry", entry: { ...E1, id: "o" + i, note } }))) });
+let back = g.get({ key: "k", action: "export" });
+assert.strictEqual(back.projects[0].name, "'70 AMX");
+assert.deepStrictEqual(back.entries.map(e => e.note), odd);
+assert.ok(g.ss.getSheetByName("Entries").rows.slice(1).every(r => r[2] === "'70 AMX"), "name on Entries tab");
+// a blank or hand-mangled Updated cell must not make the sheet's row look newer than the phone's
+g.ss.getSheetByName("Entries").rows[1][7] = "";
+g.ss.getSheetByName("Entries").rows[2][7] = "sometime";
+back = g.get({ key: "k", action: "export" });
+assert.strictEqual(back.entries[0].updated, "");
+assert.strictEqual(back.entries[1].updated, "");
+assert.strictEqual(back.entries[2].updated, t(1));
 console.log("all script tests passed");

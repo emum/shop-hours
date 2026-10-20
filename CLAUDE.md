@@ -31,7 +31,7 @@ SETUP.md                  end-user setup guide (Sheet, GitHub Pages, iPhone inst
 
 **POST without a Content-Type header** (it is sent as text/plain) to avoid a CORS preflight, which Apps Script cannot answer. Keep it that way.
 
-**Script side:** it checks `APP_KEY` and takes a script lock. Rows are upserted by ID, and an incoming op is skipped if the sheet's `Updated` value is newer, so the last writer wins by `updated`. A delete copies the row to the `Deleted` tab before removing it. Text starting with `= + - @` is prefixed with `'` so it can't become a formula. The Projects tab has live `SUMIF` columns for logged hours and hours left. A rename rewrites the project name on the Entries tab.
+**Script side:** it checks `APP_KEY` and takes a script lock. Rows are upserted by ID, and an incoming op is skipped if the sheet's `Updated` value is newer, so the last writer wins by `updated`. A delete copies the row to the `Deleted` tab before removing it. Every non-empty text cell (names, notes) is written with a leading `'`. Sheets drops the `'` and stores the rest as plain text, so nothing gets turned into a formula, date, number or boolean. A blank or unreadable `Updated` cell exports as `''`, so the phone's copy wins on restore. The Projects tab has live `SUMIF` columns for logged hours and hours left. A rename rewrites the project name on the Entries tab.
 
 **Restore:** `GET ?key=…&action=export` returns everything. The app merges it in by ID, keeping the newer `updated` value, and never deletes anything on the phone. It skips any item with a delete still waiting in the outbox, so a restore can't bring back something just deleted.
 
@@ -50,6 +50,7 @@ SETUP.md                  end-user setup guide (Sheet, GitHub Pages, iPhone inst
 - On iOS, a Safari tab and the Home Screen app have separate storage. He must always use the icon.
 - Deleting the Home Screen icon deletes local data. The fix is reinstalling and running Restore.
 - Edits made by hand in the sheet don't flow back to the phone, except through Restore, and only when the sheet's row is newer.
+- Rows written by script versions before the always-`'` change may already have been converted by Sheets, for example a note of `3/4` stored as a date. That damage isn't undone automatically. Editing the entry on the phone rewrites the row correctly.
 - The backup key travels in the URL query on GET requests. That's acceptable for an hours log, but not for anything sensitive.
 - Persistence: the app calls `navigator.storage.persist()`. On iOS, data for Home Screen apps isn't subject to the 7-day eviction.
 

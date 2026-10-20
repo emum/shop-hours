@@ -2,11 +2,18 @@
 const fs = require("fs");
 const vm = require("vm");
 
+// Like Sheets: a leading ' forces text (and is dropped); otherwise strings that
+// look like dates, numbers or booleans are converted.
 function cellIn(v) {
-  if (typeof v === "string") {
-    if (v.startsWith("'")) return v.slice(1);
-    if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return new Date(v + "T00:00:00Z");
+  if (typeof v !== "string") return v;
+  if (v.startsWith("'")) return v.slice(1);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return new Date(v + "T00:00:00Z");
+  if (/^\d{1,2}\/\d{1,2}(\/\d{2,4})?$/.test(v)) {
+    const [m, d, y] = v.split("/").map(Number);
+    return new Date(Date.UTC(y ? (y < 100 ? 2000 + y : y) : 2026, m - 1, d));
   }
+  if (/^-?\d+(\.\d+)?$/.test(v)) return Number(v);
+  if (/^(true|false)$/i.test(v)) return v.toLowerCase() === "true";
   return v;
 }
 class Range {

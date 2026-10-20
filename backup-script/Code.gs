@@ -287,10 +287,12 @@ function isNewer_(sheet, row, incomingIso) {
   return have.getTime() > new Date(incomingIso).getTime();
 }
 
-// Stop notes like "=..." or "-primer" from being read as formulas.
+// Store text exactly as typed. Sheets drops a leading ' and keeps the rest as
+// plain text, so "=...", "3/4", "TRUE", "007" and "'70 AMX" don't turn into
+// formulas, dates, booleans, numbers, or lose their apostrophe.
 function safeText_(s) {
   s = String(s === null || s === undefined ? '' : s);
-  return /^[=+\-@]/.test(s) ? "'" + s : s;
+  return s === '' ? '' : "'" + s;
 }
 
 function stamp_(iso) {
@@ -298,10 +300,12 @@ function stamp_(iso) {
   return isNaN(d.getTime()) ? new Date() : d;
 }
 
+// A blank or unreadable stamp (say, edited by hand) exports as '' so the
+// phone's copy wins on restore, instead of the row looking brand new.
 function iso_(v) {
-  if (v instanceof Date) return v.toISOString();
-  const d = new Date(v);
-  return isNaN(d.getTime()) ? new Date().toISOString() : d.toISOString();
+  if (v === '' || v === null || v === undefined) return '';
+  const d = v instanceof Date ? v : new Date(v);
+  return isNaN(d.getTime()) ? '' : d.toISOString();
 }
 
 function checkKey_(key) {
