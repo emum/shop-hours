@@ -1,10 +1,10 @@
 # Shop Hours
 
-A small iPhone app for logging hours worked on car body and paint projects (for example "AMX, 10/16/2026, 10 hrs, blocked 120 door/trunk jams"), with an optional estimated total for each project so the user can see how much is left. There is exactly one real user. He works in a garage that may not have a signal. **His data must never be lost.** That rule outranks every other consideration in this repo.
+A small phone app (iPhone and Android) for logging hours worked on car body and paint projects (for example "AMX, 10/16/2026, 10 hrs, blocked 120 door/trunk jams"), with an optional estimated total for each project so the user can see how much is left. It's given away free to car and shop people: no accounts, no subscriptions, no server we run. Each user's data goes only to their own phone and their own Google Sheet. Users work in garages that may not have a signal, and most aren't technical. **Their data must never be lost.** That rule outranks every other consideration in this repo.
 
-## Current state (v1.0)
+## Current state (v1.0.x)
 
-It's a Home Screen web app: no build step, vanilla JS, served from GitHub Pages. Every change is backed up automatically to a Google Sheet through a Google Apps Script web app.
+It's a Home Screen web app: no build step, vanilla JS. One shared copy is served from GitHub Pages at https://emum.github.io/shop-hours/. Every change is backed up automatically to the user's Google Sheet through an Apps Script web app that each user deploys in their own account. Android is supported in principle but hasn't been tested on a real device yet.
 
 ```
 app/index.html            the whole app: markup, CSS, JS in one file
@@ -16,8 +16,12 @@ backup-script/Code.gs     Apps Script: receives changes, writes the sheet, serve
 tests/gasmock.js          in-memory mock of SpreadsheetApp / ContentService / LockService
 tests/script.test.js      unit tests for Code.gs against the mock
 tests/e2e.py              Playwright run of the app at iPhone size against the mocked script, plus sync scenarios (timeouts, restore, sheet changes) on a fake clock
-SETUP.md                  end-user setup guide (Sheet, GitHub Pages, iPhone install)
+README.md                 end-user guide: what it is, setup (sheet, install, connect), troubleshooting
+images/                   README screenshots (sample data, not test output)
+.github/workflows/pages.yml  on push to main: run both test suites, then publish app/ to Pages
 ```
+
+The README is written for car and shop people, not developers. Its steps, the Phone setup tab text in `Code.gs` and the app's Backup screen use the same words ("Web app link", "backup key", "Phone setup tab"). Change all three together. The troubleshooting table quotes the app's and script's error messages, so update it when those messages change.
 
 ## How it works
 
@@ -43,13 +47,13 @@ SETUP.md                  end-user setup guide (Sheet, GitHub Pages, iPhone inst
 2. Never delete or overwrite local data from a sync or restore without a newer `updated` value.
 3. Nothing is ever hard-deleted from the sheet. Deletions go to the `Deleted` tab.
 4. The app must fully work offline: opening, logging, editing and viewing totals.
-5. Any change to the storage format needs a migration that runs on load. Never require him to reinstall or re-enter data.
+5. Any change to the storage format needs a migration that runs on load. Never require anyone to reinstall or re-enter data.
 6. Changing any file in `app/` means bumping `VERSION` in `sw.js`, and the matching `VERSION` in `index.html` (shown on the Backup screen).
-7. Changing `Code.gs` must stay backward compatible with the app version already on his phone.
+7. Changing `Code.gs` must stay backward compatible with app versions already on people's phones. The app must also keep working with older scripts, because users update their own scripts rarely, if ever.
 
 ## Known limitations
 
-- On iOS, a Safari tab and the Home Screen app have separate storage. He must always use the icon.
+- On iOS, a Safari tab and the Home Screen app have separate storage. Users must always open the app from the icon. Android's Chrome shares storage between the tab and the installed app.
 - Deleting the Home Screen icon deletes local data. The fix is reinstalling and running Restore, but any changes still waiting in the outbox are gone.
 - Edits made by hand in the sheet don't flow back to the phone, except through Restore, and only when the sheet's row is newer.
 - Rows written by script versions before the always-`'` change may already have been converted by Sheets, for example a note of `3/4` stored as a date. That damage isn't undone automatically. Editing the entry on the phone rewrites the row correctly.
