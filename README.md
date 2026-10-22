@@ -144,3 +144,7 @@ cd tests && python3 e2e.py                    # browser tests (pip install playw
 ```
 
 [CLAUDE.md](CLAUDE.md) explains how syncing and restoring work, and the rules that keep data safe. To host your own copy, fork this repo, then turn on **Settings → Pages → Source: GitHub Actions**.
+
+## License
+
+[MIT](LICENSE). Use it, change it and share it freely. The Permanent Marker font in `app/marker.woff2` has its own font license.

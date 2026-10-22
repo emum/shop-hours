@@ -16,6 +16,7 @@ backup-script/Code.gs     Apps Script: receives changes, writes the sheet, serve
 tests/gasmock.js          in-memory mock of SpreadsheetApp / ContentService / LockService
 tests/script.test.js      unit tests for Code.gs against the mock
 tests/e2e.py              Playwright run of the app at iPhone size against the mocked script, plus sync scenarios (timeouts, restore, sheet changes) on a fake clock
+LICENSE                   MIT, except the font file, which keeps its own license
 README.md                 end-user guide: what it is, setup (sheet, install, connect), troubleshooting
 images/                   README screenshots (sample data, not test output)
 .github/workflows/pages.yml  on push to main: run both test suites, then publish app/ to Pages
