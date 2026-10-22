@@ -1,0 +1,49 @@
+# Every push to main: run both test suites, and only if they pass,
+# publish the app/ folder to GitHub Pages. Everyone using the app gets
+# this copy, so a failing test must never reach their phones.
+name: Test and publish
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: node tests/script.test.js
+      - run: pip install playwright && python -m playwright install --with-deps chromium
+      - run: python e2e.py
+        working-directory: tests
+
+  publish:
+    needs: test
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: app
+      - id: deploy
+        uses: actions/deploy-pages@v4
