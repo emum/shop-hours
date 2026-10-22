@@ -1,6 +1,7 @@
 const { loadScript } = require("./gasmock");
 const assert = require("assert");
 const S = require("path").join(__dirname, "..", "backup-script", "Code.gs");
+const V = +require("fs").readFileSync(S, "utf8").match(/const SCRIPT_VERSION = (\d+);/)[1];
 // no key yet: says to click Run
 let g = loadScript(S);
 assert.match(g.get({ key: "x" }).error, /no key yet.*click Run/);
@@ -16,6 +17,7 @@ tab.rows[2][1] = LINK;
 g.run("setup");
 assert.strictEqual(tab.rows[1][1], madeKey, "same key on a second run");
 assert.strictEqual(tab.rows[2][1], LINK, "pasted link kept");
+assert.deepStrictEqual(tab.rows[3], ["Script version", V]);
 // pasting a newer script (fresh context, same stored properties) keeps the key
 const g2 = loadScript(S); Object.assign(g2.props, g.props);
 assert.strictEqual(g2.get({ key: madeKey }).ok, true);
@@ -25,7 +27,8 @@ g.run("setup");
 assert.strictEqual(g.ss.getSheetByName("Phone setup").rows[1][1], "amx70");
 g = loadScript(S, "amx70");
 assert.match(g.get({ key: "bad" }).error, /does not match/);
-assert.deepStrictEqual(g.get({ key: "amx70" }), { ok: true, sheet: "Shop Hours Backup", projects: 0, entries: 0 });
+assert.deepStrictEqual(g.get({ key: "amx70" }), { ok: true, sheet: "Shop Hours Backup", projects: 0, entries: 0, version: V });
+assert.strictEqual(g.get({ key: "bad" }).version, V, "errors carry the version too");
 assert.deepStrictEqual(g.ss.sheets.map(s => s.name), ["Projects", "Entries", "Deleted"]);
 const t = n => new Date(Date.UTC(2026, 9, 16, 12, n)).toISOString();
 const P = { id: "p1", name: "AMX", est: 400, status: "active", created: t(0), updated: t(0) };
@@ -33,7 +36,7 @@ const E1 = { id: "e1", projectId: "p1", date: "2026-10-16", hours: 10, note: "Bl
 const E2 = { id: "e2", projectId: "p1", date: "2026-10-15", hours: 6.5, note: "-primer, = filler\n2nd line, \"quoted\"", created: t(2), updated: t(2) };
 // entry arriving before its project (edge case) then project
 let r = g.post({ key: "amx70", ops: [{ op: "putEntry", entry: E2 }, { op: "putProject", project: P }, { op: "putEntry", entry: E1 }] });
-assert.deepStrictEqual(r, { ok: true, applied: 3 });
+assert.deepStrictEqual(r, { ok: true, applied: 3, version: V });
 const ent = g.ss.getSheetByName("Entries"), pr = g.ss.getSheetByName("Projects");
 assert.strictEqual(ent.rows[1][2], "AMX", "project name backfilled");
 assert.strictEqual(ent.rows[1][4], E2.note, "note kept literally");

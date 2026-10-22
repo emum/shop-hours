@@ -18,6 +18,11 @@ const APP_KEY = 'CHANGE-ME';
 
 const SETUP_TAB = 'Phone setup';
 
+// Bump this whenever this file changes, together with SCRIPT_LATEST in app/index.html.
+// Every response carries it, and the app tells people when their copy is behind.
+// The first published script sent no version; the app counts that as 1.
+const SCRIPT_VERSION = 2;
+
 const SHEETS = {
   projects: {
     name: 'Projects',
@@ -57,7 +62,7 @@ function showSetup_(ss, key) {
     ['Shop Hours phone setup', ''],
     ['Backup key', safeText_(key)],
     ['Web app link', link === '' ? '' : safeText_(link)],
-    ['', ''],
+    ['Script version', SCRIPT_VERSION],
     ['Next steps', ''],
     [safeText_('1. In Apps Script, click Deploy, then New deployment. Pick Web app. Execute as: Me. Who has access: Anyone. Click Deploy.'), ''],
     [safeText_('2. Copy the Web app URL (it ends in /exec) and paste it in the box next to "Web app link" above.'), ''],
@@ -367,5 +372,6 @@ function respond_(fn) {
   } catch (err) {
     out = { ok: false, error: String((err && err.message) || err) };
   }
+  out.version = SCRIPT_VERSION;
   return ContentService.createTextOutput(JSON.stringify(out)).setMimeType(ContentService.MimeType.JSON);
 }
