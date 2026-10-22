@@ -267,8 +267,12 @@ select.input { appearance: none; -webkit-appearance: none;
    wait in a queue (also on the phone) and go out later.
    ========================================================= */
 
-const VERSION = "1.0.4";
+const VERSION = "1.1.0";
 const GUIDE_URL = "https://github.com/emum/shop-hours#get-it";
+// The newest backup script (SCRIPT_VERSION in Code.gs). Older scripts keep working;
+// the app only suggests updating. A script that sends no version is the first one, 1.
+const SCRIPT_LATEST = 2;
+const UPDATE_URL = "https://github.com/emum/shop-hours#updating-the-backup-script";
 const KEYS = { data: "sh.data", outbox: "sh.outbox", settings: "sh.settings", sync: "sh.sync" };
 
 /* ---------- storage ---------- */
@@ -372,6 +376,8 @@ function queue(op, key, noFlush) {
 }
 const isPending = key => outbox.some(x => x.key === key);
 const backupReady = () => !!(settings.url && settings.key);
+function noteScript(out) { sync.scriptVersion = +out.version || 1; }
+const scriptBehind = () => !!sync.scriptVersion && sync.scriptVersion < SCRIPT_LATEST;
 
 // A request that never answers (weak signal, or iOS suspending the app mid-request)
 // must not hold up backups for the rest of the session, so every call to Google has a deadline.
@@ -407,6 +413,7 @@ async function flush() {
       method: "POST",
       body: JSON.stringify({ key: settings.key, ops: batch.map(x => x.op) }),
     }, "Google sent back something unexpected. Check the backup link.");
+    noteScript(out);
     if (!out.ok) throw new Error(out.error || "The backup sheet turned the change down.");
     outbox = outbox.filter(x => !sent.has(x.q));
     store(KEYS.outbox, outbox);
@@ -436,6 +443,8 @@ async function callSheet(action) {
   const sep = settings.url.includes("?") ? "&" : "?";
   const url = settings.url + sep + "key=" + encodeURIComponent(settings.key) + (action ? "&action=" + action : "");
   const out = await fetchJson(url, {}, "That link didn't answer like the backup script. Copy the Web app URL again from Apps Script.");
+  noteScript(out);
+  store(KEYS.sync, sync);
   if (!out.ok) throw new Error(out.error || "The backup sheet returned an error.");
   return out;
 }
@@ -471,7 +480,8 @@ function statusHtml() {
       <button class="link" data-act="retry">Try now</button></span></div>`;
   }
   if (n || flushing) return `<div class="status wait" id="status"><span class="dot"></span><span>Backing up to Google Sheets…</span></div>`;
-  return `<div class="status" id="status"><span class="dot"></span><span>${sync.lastOk ? "Everything backed up, " + esc(whenLabel(sync.lastOk)) : "Backup is on. New entries go to Google Sheets as you save them."}</span></div>`;
+  const update = scriptBehind() ? ` <a class="link" href="${UPDATE_URL}" target="_blank" rel="noopener">Update the backup script</a>` : "";
+  return `<div class="status" id="status"><span class="dot"></span><span>${sync.lastOk ? "Everything backed up, " + esc(whenLabel(sync.lastOk)) + "." : "Backup is on. New entries go to Google Sheets as you save them."}${update}</span></div>`;
 }
 function renderStatus() {
   const el = $("#status");
@@ -621,6 +631,9 @@ function renderSettingsStatus() {
     ${sync.lastError && outbox.length ? `<div class="kv"><span>Problem</span><span style="color:var(--warn);text-align:right">${esc(sync.lastError)}</span></div>` : ""}
     <div class="kv"><span>On this phone</span><span class="num">${plural(data.projects.length, "project")}, ${plural(data.entries.length, "entry").replace("entrys", "entries")}</span></div>
     ${persisted === false ? `<div class="kv"><span>Phone storage</span><span>Standard</span></div>` : ""}
+    ${sync.scriptVersion ? `<div class="kv"><span>Backup script</span><span>Version ${sync.scriptVersion}, ${scriptBehind() ? "update ready" : "up to date"}</span></div>` : ""}
+    ${scriptBehind() ? `<p style="margin:12px 0 0">A newer backup script is ready. Backups keep working until you update. It takes about 2 minutes on a computer.
+      <a class="link" href="${UPDATE_URL}" target="_blank" rel="noopener">How to update</a></p>` : ""}
     ${outbox.length && backupReady() ? `<button class="btn ghost" data-act="retry" style="margin-top:12px">Back up now</button>` : ""}`;
 }
 async function onSetupSubmit(ev) {

@@ -40,6 +40,8 @@ def handler(route, req):
     else:
         q = {k: v[0] for k, v in parse_qs(urlparse(req.url).query).items()}
         out = ask({"sheet": sid, "method": "GET", "params": q})
+    if state.get("old"):
+        out.pop("version", None)  # the first published script didn't send a version
     route.fulfill(status=200, content_type="application/json", body=json.dumps(out), headers={"Access-Control-Allow-Origin": "*"})
 def sheet(sid="AKfyTEST"):
     return ask({"sheet": sid, "method": "GET", "params": {"key": "amx70", "action": "export"}})
@@ -190,6 +192,25 @@ with sync_playwright() as p:
     new = sheet("AKfyNEW")
     assert [x["id"] for x in new["projects"]] == ["pMove"] and [x["id"] for x in new["entries"]] == ["eMove"], new
     c4.close()
+
+    # an older backup script: backups still work, and the app points to the update steps
+    c5, pg5 = setup_phone()
+    state["old"] = True
+    pg5.evaluate("putProject({id: 'pOld', name: 'Old script', est: null, status: 'active', created: nowIso()})")
+    pg5.clock.run_for(2000); pg5.wait_for_timeout(300)
+    assert pg5.evaluate("outbox.length") == 0, "old script still backs up"
+    upd = pg5.locator("#status a[href$='#updating-the-backup-script']")
+    assert upd.is_visible() and upd.inner_text() == "Update the backup script", pg5.inner_text("#status")
+    pg5.click("text=Backup"); pg5.wait_for_timeout(300)
+    assert "Version 1, update ready" in pg5.inner_text("#sync-card"), pg5.inner_text("#sync-card")
+    pg5.screenshot(path=f"{OUT}/11-script-update.png", full_page=True)
+    state["old"] = False
+    pg5.evaluate("putEntry({id: 'eOld', projectId: 'pOld', date: '2026-10-18', hours: 1, note: '', created: nowIso()})")
+    pg5.clock.run_for(2000); pg5.wait_for_timeout(300)
+    assert "up to date" in pg5.inner_text("#sync-card"), pg5.inner_text("#sync-card")
+    pg5.click("[data-act=home]"); pg5.wait_for_timeout(300)
+    assert pg5.locator("#status a").count() == 0, "notice gone once the script is current"
+    c5.close()
     b.close()
 print("posts:", state["posts"], "page errors:", errors)
 assert not errors, errors

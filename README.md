@@ -112,12 +112,12 @@ Make your changes in the app, not by editing rows in the sheet. The sheet is the
 
 ## Updating the backup script
 
-The app updates itself. The backup script only needs updating if a change note here says so. To update it:
+The app updates itself. The backup script lives in your Google account, so you update that part yourself. When a newer one is out, the app shows **Update the backup script** under the backup line. Your backups keep working until you get to it. To update:
 
 1. Open your sheet, then **Extensions → Apps Script**. Replace all the code with the new [backup script](backup-script/Code.gs) and click **Save**.
 2. Click **Deploy → Manage deployments**, then the pencil icon. Set **Version** to **New version** and click **Deploy**.
 
-Your Web app link and backup key stay the same, so there's nothing to change on your phone.
+Your Web app link and backup key stay the same, so there's nothing to change on your phone. The notice goes away the next time the app backs up.
 
 ## Your data
 

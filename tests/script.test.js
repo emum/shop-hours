@@ -2,6 +2,9 @@ const { loadScript } = require("./gasmock");
 const assert = require("assert");
 const S = require("path").join(__dirname, "..", "backup-script", "Code.gs");
 const V = +require("fs").readFileSync(S, "utf8").match(/const SCRIPT_VERSION = (\d+);/)[1];
+const APP = require("path").join(__dirname, "..", "app", "index.html");
+assert.strictEqual(+require("fs").readFileSync(APP, "utf8").match(/const SCRIPT_LATEST = (\d+);/)[1], V,
+  "bump SCRIPT_LATEST in app/index.html together with SCRIPT_VERSION in Code.gs");
 // no key yet: says to click Run
 let g = loadScript(S);
 assert.match(g.get({ key: "x" }).error, /no key yet.*click Run/);
