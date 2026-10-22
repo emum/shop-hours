@@ -30,13 +30,14 @@ Use a computer for this step. Google's script editor is very hard to use on a ph
 1. Sign in to Google, then go to **[sheets.new](https://sheets.new)**. A blank spreadsheet opens.
    Click *Untitled spreadsheet* at the top left and name it **Shop Hours Backup**.
 2. In the sheet's menu, click **Extensions → Apps Script**. A code editor opens in a new tab.
+   Click *Untitled project* at the top left, name it **Shop Hours Backup**, and click **Rename**. Google shows this name on the permission screens in part 4.
 3. Open the **[backup script](backup-script/Code.gs)** in another tab and click the **copy button** (two overlapping squares, top right of the code).
    Go back to the code editor, select everything that's already there and delete it, then paste.
    Click the **Save** icon (the floppy disk).
 4. Click **Run**. If the box next to Run says something other than **setup**, pick **setup** first.
    Google asks for permission:
    - Click **Review permissions** and pick your account.
-   - You'll see **"Google hasn't verified this app."** Click **Advanced**, then **Go to Untitled project (unsafe)**.
+   - You'll see **"Google hasn't verified this app."** Click **Advanced**, then **Go to Shop Hours Backup (unsafe)**.
    - If you see checkboxes, tick them all. Then click **Allow** (or **Continue**).
 
    > **Is that safe?** Yes. Google shows that warning for any script a person writes for their own use, rather than one from a company Google has checked. The script runs in your account and can only open this one spreadsheet.
