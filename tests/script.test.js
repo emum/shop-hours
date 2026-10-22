@@ -1,9 +1,28 @@
 const { loadScript } = require("./gasmock");
 const assert = require("assert");
 const S = require("path").join(__dirname, "..", "backup-script", "Code.gs");
-// unset key
+// no key yet: says to click Run
 let g = loadScript(S);
-assert.match(g.get({ key: "x" }).error, /Set APP_KEY/);
+assert.match(g.get({ key: "x" }).error, /no key yet.*click Run/);
+// setup() makes a key once, shows it on the Phone setup tab, and keeps it (and a pasted link) on later runs
+g.run("setup");
+const tab = g.ss.getSheetByName("Phone setup");
+const madeKey = tab.rows[1][1];
+assert.match(madeKey, /^[a-z2-9]{4}-[a-z2-9]{4}-[a-z2-9]{4}$/);
+assert.strictEqual(g.get({ key: madeKey }).ok, true);
+assert.match(g.get({ key: "x" }).error, /does not match/);
+const LINK = "https://script.google.com/macros/s/AKfyTEST/exec";
+tab.rows[2][1] = LINK;
+g.run("setup");
+assert.strictEqual(tab.rows[1][1], madeKey, "same key on a second run");
+assert.strictEqual(tab.rows[2][1], LINK, "pasted link kept");
+// pasting a newer script (fresh context, same stored properties) keeps the key
+const g2 = loadScript(S); Object.assign(g2.props, g.props);
+assert.strictEqual(g2.get({ key: madeKey }).ok, true);
+// a passphrase typed into APP_KEY wins, and setup shows it
+g = loadScript(S, "amx70");
+g.run("setup");
+assert.strictEqual(g.ss.getSheetByName("Phone setup").rows[1][1], "amx70");
 g = loadScript(S, "amx70");
 assert.match(g.get({ key: "bad" }).error, /does not match/);
 assert.deepStrictEqual(g.get({ key: "amx70" }), { ok: true, sheet: "Shop Hours Backup", projects: 0, entries: 0 });

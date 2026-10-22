@@ -2,16 +2,21 @@
  * Shop Hours — Google Sheets backup
  *
  * Paste this whole file into Extensions > Apps Script of a new Google Sheet,
- * set APP_KEY below, then Deploy > New deployment > Web app
- * (Execute as: Me, Who has access: Anyone). See SETUP.md for the full steps.
+ * click Run (it runs setup), then Deploy > New deployment > Web app
+ * (Execute as: Me, Who has access: Anyone). See README.md for the full steps.
  *
  * The app sends every new, changed or deleted entry here as soon as it is saved.
  * Nothing is ever erased outright: deleted rows are copied to the "Deleted" tab first.
+ *
+ * @OnlyCurrentDoc  (the script can only open the spreadsheet it belongs to)
  */
 
-// Pick any passphrase (letters and numbers, no spaces is easiest).
-// Type the same one into the app under Backup settings.
+// Leave this as 'CHANGE-ME': setup() makes a backup key and shows it on the
+// "Phone setup" tab, and the key survives pasting in a newer version of this file.
+// A passphrase typed here instead takes priority over the generated one.
 const APP_KEY = 'CHANGE-ME';
+
+const SETUP_TAB = 'Phone setup';
 
 const SHEETS = {
   projects: {
@@ -32,6 +37,38 @@ const SHEETS = {
 };
 
 const STAMP_FORMAT = 'm/d/yyyy h:mm am/pm';
+
+/* ---------- one-time setup ---------- */
+
+// Run this once from the editor. It's the first function in the file, so it's
+// the one the Run button picks. It creates the tabs and a backup key (keeping
+// any key made before), and shows the key on the "Phone setup" tab.
+function setup() {
+  const ss = ensureSheets_();
+  const key = appKey_() || newKey_();
+  showSetup_(ss, key);
+  console.log('Done. Your backup key is ' + key + ' (also on the "Phone setup" tab of the sheet).');
+}
+
+function showSetup_(ss, key) {
+  const sh = ss.getSheetByName(SETUP_TAB) || ss.insertSheet(SETUP_TAB, 0);
+  const link = sh.getRange(3, 2).getValue(); // keep a link pasted in earlier
+  sh.getRange(1, 1, 9, 2).setValues([
+    ['Shop Hours phone setup', ''],
+    ['Backup key', safeText_(key)],
+    ['Web app link', link === '' ? '' : safeText_(link)],
+    ['', ''],
+    ['Next steps', ''],
+    [safeText_('1. In Apps Script, click Deploy, then New deployment. Pick Web app. Execute as: Me. Who has access: Anyone. Click Deploy.'), ''],
+    [safeText_('2. Copy the Web app URL (it ends in /exec) and paste it in the box next to "Web app link" above.'), ''],
+    [safeText_('3. On your phone, open Shop Hours, tap Backup, and paste in the Web app link and the backup key.'), ''],
+    [safeText_('Keep the key to yourself. Anyone with both the link and the key can add rows to this sheet.'), ''],
+  ]);
+  sh.getRange(1, 1).setFontWeight('bold');
+  sh.getRange(5, 1).setFontWeight('bold');
+  sh.setColumnWidth(1, 140);
+  sh.setColumnWidth(2, 480);
+}
 
 /* ---------- web endpoints ---------- */
 
@@ -70,11 +107,6 @@ function doPost(e) {
       lock.releaseLock();
     }
   });
-}
-
-// Optional: run once from the editor to create the tabs and grant access.
-function setup() {
-  ensureSheets_();
 }
 
 /* ---------- operations ---------- */
@@ -308,9 +340,24 @@ function iso_(v) {
   return isNaN(d.getTime()) ? '' : d.toISOString();
 }
 
+function appKey_() {
+  if (APP_KEY !== 'CHANGE-ME') return APP_KEY;
+  return PropertiesService.getScriptProperties().getProperty('APP_KEY') || '';
+}
+
+// 12 letters and digits in groups of four, leaving out look-alikes (0/o, 1/l/i).
+function newKey_() {
+  const abc = 'abcdefghjkmnpqrstuvwxyz23456789';
+  let key = '';
+  for (let i = 0; i < 12; i++) key += (i && i % 4 === 0 ? '-' : '') + abc.charAt(Math.floor(Math.random() * abc.length));
+  PropertiesService.getScriptProperties().setProperty('APP_KEY', key);
+  return key;
+}
+
 function checkKey_(key) {
-  if (APP_KEY === 'CHANGE-ME') throw new Error('Set APP_KEY at the top of the backup script, then deploy a new version.');
-  if (String(key || '') !== APP_KEY) throw new Error('The backup key does not match the one in the script.');
+  const want = appKey_();
+  if (!want) throw new Error('This backup script has no key yet. In the sheet, open Extensions, then Apps Script, and click Run. Then try again.');
+  if (String(key || '') !== want) throw new Error('The backup key does not match. Copy it again from the Phone setup tab of your Google Sheet.');
 }
 
 function respond_(fn) {

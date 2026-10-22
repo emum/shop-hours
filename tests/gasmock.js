@@ -68,12 +68,14 @@ function makeSpreadsheet() {
 }
 function loadScript(path, key) {
   const ss = makeSpreadsheet();
+  const props = {};
   const ctx = {
     SpreadsheetApp: { getActiveSpreadsheet: () => ss },
     LockService: { getScriptLock: () => ({ waitLock() {}, releaseLock() {} }) },
     ContentService: { MimeType: { JSON: "json" }, createTextOutput: s => ({ s, setMimeType() { return this; } }) },
     Utilities: { formatDate: d => d.toISOString().slice(0, 10) },
     Session: { getScriptTimeZone: () => "UTC" },
+    PropertiesService: { getScriptProperties: () => ({ getProperty: k => (k in props ? props[k] : null), setProperty(k, v) { props[k] = String(v); return this; } }) },
     console, Date,
   };
   vm.createContext(ctx);
@@ -82,6 +84,8 @@ function loadScript(path, key) {
   vm.runInContext(src, ctx);
   return {
     ss,
+    props,
+    run: name => ctx[name](),
     get: params => JSON.parse(ctx.doGet({ parameter: params }).s),
     post: body => JSON.parse(ctx.doPost({ postData: { contents: typeof body === "string" ? body : JSON.stringify(body) } }).s),
   };
