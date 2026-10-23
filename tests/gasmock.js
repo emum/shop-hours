@@ -54,11 +54,16 @@ class Sheet {
   deleteRow(r) { this.rows.splice(r - 1, 1); }
   setFrozenRows() {} setColumnWidth() {}
 }
-function makeSpreadsheet() {
+function makeSpreadsheet(id) {
   const sheets = [new Sheet("Sheet1")];
   return {
     sheets,
+    menus: [],
+    active: null,
+    getId: () => id,
     getName: () => "Shop Hours Backup",
+    setActiveSheet(s) { this.active = s.name; return s; },
+    toast() {},
     getSpreadsheetTimeZone: () => "UTC",
     getSheetByName: n => sheets.find(s => s.name === n) || null,
     insertSheet: n => { const s = new Sheet(n); sheets.push(s); return s; },
@@ -66,11 +71,14 @@ function makeSpreadsheet() {
     deleteSheet: s => sheets.splice(sheets.indexOf(s), 1),
   };
 }
-function loadScript(path, key) {
-  const ss = makeSpreadsheet();
-  const props = {};
+// opts.sheetId stands in for a different spreadsheet (a copy); opts.props for the
+// script properties it starts with.
+function loadScript(path, key, opts = {}) {
+  const ss = makeSpreadsheet(opts.sheetId || "sheet-1");
+  const props = Object.assign({}, opts.props);
+  const ui = { createMenu: name => { const m = { name, items: [] }; return { addItem(label, fn) { m.items.push([label, fn]); return this; }, addToUi() { ss.menus.push(m); } }; } };
   const ctx = {
-    SpreadsheetApp: { getActiveSpreadsheet: () => ss },
+    SpreadsheetApp: { getActiveSpreadsheet: () => ss, getUi: () => ui },
     LockService: { getScriptLock: () => ({ waitLock() {}, releaseLock() {} }) },
     ContentService: { MimeType: { JSON: "json" }, createTextOutput: s => ({ s, setMimeType() { return this; } }) },
     Utilities: { formatDate: d => d.toISOString().slice(0, 10) },

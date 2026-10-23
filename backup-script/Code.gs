@@ -1,9 +1,10 @@
 /**
  * Shop Hours — Google Sheets backup
  *
- * Paste this whole file into Extensions > Apps Script of a new Google Sheet,
- * click Run (it runs setup), then Deploy > New deployment > Web app
- * (Execute as: Me, Who has access: Anyone). See README.md for the full steps.
+ * Most people get this by copying the template sheet linked in README.md, which
+ * already has it attached. In the copy: Shop Hours > Phone setup (or Run in the
+ * editor), then Deploy > New deployment > Web app (Execute as: Me, Who has
+ * access: Anyone). It can also be pasted into Extensions > Apps Script of any sheet.
  *
  * The app sends every new, changed or deleted entry here as soon as it is saved.
  * Nothing is ever erased outright: deleted rows are copied to the "Deleted" tab first.
@@ -17,11 +18,13 @@
 const APP_KEY = 'CHANGE-ME';
 
 const SETUP_TAB = 'Phone setup';
+const START_TAB = 'Start here'; // the template's welcome tab; removed once setup runs
 
-// Bump this whenever this file changes, together with SCRIPT_LATEST in app/index.html.
-// Every response carries it, and the app tells people when their copy is behind.
-// The first published script sent no version; the app counts that as 1.
-const SCRIPT_VERSION = 2;
+// Bump this whenever the script's behavior changes. Every response carries it.
+// SCRIPT_LATEST in app/index.html is the version people should have: raise it
+// only when an update matters to existing users, since raising it asks everyone
+// to update. The first published script sent no version; the app counts that as 1.
+const SCRIPT_VERSION = 3;
 
 const SHEETS = {
   projects: {
@@ -45,34 +48,51 @@ const STAMP_FORMAT = 'm/d/yyyy h:mm am/pm';
 
 /* ---------- one-time setup ---------- */
 
-// Run this once from the editor. It's the first function in the file, so it's
-// the one the Run button picks. It creates the tabs and a backup key (keeping
-// any key made before), and shows the key on the "Phone setup" tab.
+// Runs from the sheet's Shop Hours > Phone setup menu, or from Run in the editor
+// (it's the first function in the file, so it's the one Run picks). It creates
+// the tabs and a backup key (keeping any key made before), and shows the key on
+// the "Phone setup" tab.
 function setup() {
   const ss = ensureSheets_();
   const key = appKey_() || newKey_();
-  showSetup_(ss, key);
+  const sh = showSetup_(ss, key);
+  const start = ss.getSheetByName(START_TAB);
+  if (start && ss.getSheets().length > 1) ss.deleteSheet(start);
+  ss.setActiveSheet(sh);
+  ss.toast('Your backup key is on the Phone setup tab.', 'Shop Hours');
   console.log('Done. Your backup key is ' + key + ' (also on the "Phone setup" tab of the sheet).');
+}
+
+// Adds the Shop Hours menu each time the sheet opens, so nobody has to find
+// the Run button in the script editor.
+function onOpen() {
+  SpreadsheetApp.getUi().createMenu('Shop Hours').addItem('Phone setup', 'setup').addToUi();
 }
 
 function showSetup_(ss, key) {
   const sh = ss.getSheetByName(SETUP_TAB) || ss.insertSheet(SETUP_TAB, 0);
   const link = sh.getRange(3, 2).getValue(); // keep a link pasted in earlier
-  sh.getRange(1, 1, 9, 2).setValues([
+  sh.getRange(1, 1, 13, 2).setValues([
     ['Shop Hours phone setup', ''],
     ['Backup key', safeText_(key)],
     ['Web app link', link === '' ? '' : safeText_(link)],
+    // The app splits this back into the link and the key, so people paste one thing.
+    ['Setup code', '=IF(B3="", "Paste your Web app link in the box above first.", B3 & "#" & B2)'],
     ['Script version', SCRIPT_VERSION],
+    ['', ''],
     ['Next steps', ''],
-    [safeText_('1. In Apps Script, click Deploy, then New deployment. Pick Web app. Execute as: Me. Who has access: Anyone. Click Deploy.'), ''],
-    [safeText_('2. Copy the Web app URL (it ends in /exec) and paste it in the box next to "Web app link" above.'), ''],
-    [safeText_('3. On your phone, open Shop Hours, tap Backup, and paste in the Web app link and the backup key.'), ''],
-    [safeText_('Keep the key to yourself. Anyone with both the link and the key can add rows to this sheet.'), ''],
+    [safeText_('1. Click Extensions, then Apps Script. Click the blue Deploy button at the top right, then New deployment. Click the gear next to Select type and pick Web app. Execute as: Me. Who has access starts as Only myself: change it to Anyone. Click Deploy.'), ''],
+    [safeText_('2. Click Copy under the Web app URL. Paste it in the box next to "Web app link" above. The setup code fills in by itself.'), ''],
+    [safeText_('3. Email the setup code to yourself. On your phone, open Shop Hours from the Home Screen icon, tap Backup, paste the setup code, and tap Save and test.'), ''],
+    [safeText_('Step-by-step guide: https://github.com/emum/shop-hours#get-it'), ''],
+    ['', ''],
+    [safeText_("Don't share this sheet or pictures of this tab. Anyone with the link and the key can read and change your backup. To share your hours, use Export CSV in the app."), ''],
   ]);
   sh.getRange(1, 1).setFontWeight('bold');
-  sh.getRange(5, 1).setFontWeight('bold');
+  sh.getRange(7, 1).setFontWeight('bold');
   sh.setColumnWidth(1, 140);
   sh.setColumnWidth(2, 480);
+  return sh;
 }
 
 /* ---------- web endpoints ---------- */
@@ -345,9 +365,16 @@ function iso_(v) {
   return isNaN(d.getTime()) ? '' : d.toISOString();
 }
 
+// A generated key remembers which spreadsheet it was made in. If the script's
+// properties ever come along with a copy of the sheet, the copy ignores the
+// original's key and makes its own. Keys made before this have no sheet noted
+// and stay valid.
 function appKey_() {
   if (APP_KEY !== 'CHANGE-ME') return APP_KEY;
-  return PropertiesService.getScriptProperties().getProperty('APP_KEY') || '';
+  const props = PropertiesService.getScriptProperties();
+  const madeIn = props.getProperty('APP_KEY_SHEET');
+  if (madeIn && madeIn !== SpreadsheetApp.getActiveSpreadsheet().getId()) return '';
+  return props.getProperty('APP_KEY') || '';
 }
 
 // 12 letters and digits in groups of four, leaving out look-alikes (0/o, 1/l/i).
@@ -355,13 +382,15 @@ function newKey_() {
   const abc = 'abcdefghjkmnpqrstuvwxyz23456789';
   let key = '';
   for (let i = 0; i < 12; i++) key += (i && i % 4 === 0 ? '-' : '') + abc.charAt(Math.floor(Math.random() * abc.length));
-  PropertiesService.getScriptProperties().setProperty('APP_KEY', key);
+  PropertiesService.getScriptProperties()
+    .setProperty('APP_KEY', key)
+    .setProperty('APP_KEY_SHEET', SpreadsheetApp.getActiveSpreadsheet().getId());
   return key;
 }
 
 function checkKey_(key) {
   const want = appKey_();
-  if (!want) throw new Error('This backup script has no key yet. In the sheet, open Extensions, then Apps Script, and click Run. Then try again.');
+  if (!want) throw new Error('This backup script has no key yet. In your Google Sheet, click Shop Hours, then Phone setup. Then try again.');
   if (String(key || '') !== want) throw new Error('The backup key does not match. Copy it again from the Phone setup tab of your Google Sheet.');
 }
 

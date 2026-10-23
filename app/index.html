@@ -267,10 +267,11 @@ select.input { appearance: none; -webkit-appearance: none;
    wait in a queue (also on the phone) and go out later.
    ========================================================= */
 
-const VERSION = "1.1.0";
+const VERSION = "1.2.0";
 const GUIDE_URL = "https://github.com/emum/shop-hours#get-it";
-// The newest backup script (SCRIPT_VERSION in Code.gs). Older scripts keep working;
-// the app only suggests updating. A script that sends no version is the first one, 1.
+// The backup script version people should have. Older scripts keep working; the app
+// only suggests updating. Raise this only when an update matters to existing users
+// (it can lag SCRIPT_VERSION in Code.gs). A script that sends no version is 1.
 const SCRIPT_LATEST = 2;
 const UPDATE_URL = "https://github.com/emum/shop-hours#updating-the-backup-script";
 const KEYS = { data: "sh.data", outbox: "sh.outbox", settings: "sh.settings", sync: "sh.sync" };
@@ -460,12 +461,20 @@ function go(hash) { location.hash = hash; }
 window.addEventListener("hashchange", () => { closeSheet(); render(); window.scrollTo(0, 0); });
 
 /* ---------- rendering ---------- */
+// On iPhone a browser tab and the Home Screen app keep separate data, so say so
+// before anything gets logged in the tab. navigator.standalone exists only on iOS.
+const inIosTab = navigator.standalone === false;
+const TAB_WARNING = `<div class="alert" id="tabwarn"><p><strong>Open Shop Hours from your Home Screen.</strong>
+  This is a browser tab. Anything you set up or log here stays in this browser, separate from the Home Screen app.</p>
+  <p>In Safari, tap Share, then Add to Home Screen. Then open Shop Hours from the new icon.</p></div>`;
+
 function render() {
   const r = route();
   if (r.name === "project" && !project(r.id)) { go("#/"); return; }
   if (r.name === "home") renderHome();
   else if (r.name === "project") renderProject(r.id);
   else renderSettings();
+  if (inIosTab) $("#app").insertAdjacentHTML("afterbegin", TAB_WARNING);
   renderStatus();
 }
 
@@ -589,10 +598,10 @@ function renderSettings() {
     <h1 style="font-size:28px;margin:6px 0 18px">Backup</h1>
     <div class="card">
       <h2>Google Sheets link</h2>
-      <p>Paste the Web app link and backup key from the Phone setup tab of your Google Sheet. Every entry is sent to the sheet as soon as you save it.</p>
+      <p>Paste the setup code from the Phone setup tab of your Google Sheet. It fills in the backup key for you. Every entry is sent to the sheet as soon as you save it.</p>
       <p><a class="link" href="${GUIDE_URL}" target="_blank" rel="noopener">How to make the sheet</a></p>
       <form id="setup-form">
-        <div class="field"><label for="f-url">Web app link</label>
+        <div class="field"><label for="f-url">Setup code or Web app link</label>
           <input class="input" id="f-url" type="url" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false"
             placeholder="https://script.google.com/macros/s/…/exec" value="${esc(settings.url)}"></div>
         <div class="field"><label for="f-key">Backup key</label>
@@ -619,7 +628,16 @@ function renderSettings() {
     </div>
     <p style="color:var(--muted);font-size:14px;text-align:center">Shop Hours ${VERSION}</p>`;
   $("#setup-form").addEventListener("submit", onSetupSubmit);
+  $("#f-url").addEventListener("input", splitSetupCode);
   renderSettingsStatus();
+}
+// The Phone setup tab's setup code is "<Web app link>#<backup key>". Split it
+// as soon as it's pasted, so the key box visibly fills in.
+function splitSetupCode() {
+  const m = $("#f-url").value.trim().match(/^(https:\/\/\S+?\/exec)#(\S+)$/);
+  if (!m) return;
+  $("#f-url").value = m[1];
+  $("#f-key").value = m[2];
 }
 function renderSettingsStatus() {
   const el = $("#sync-card");
@@ -638,6 +656,7 @@ function renderSettingsStatus() {
 }
 async function onSetupSubmit(ev) {
   ev.preventDefault();
+  splitSetupCode();
   const url = $("#f-url").value.trim(), key = $("#f-key").value.trim();
   const out = $("#test-result");
   if (!/^https:\/\/script\.google(usercontent)?\.com\//.test(url)) {
@@ -645,7 +664,7 @@ async function onSetupSubmit(ev) {
     out.textContent = "That doesn't look like a Google Apps Script link. It should start with https://script.google.com/macros/s/";
     return;
   }
-  if (!key) { out.className = "result bad"; out.textContent = "Enter the backup key."; return; }
+  if (!key) { out.className = "result bad"; out.textContent = "Enter the backup key, or paste the whole setup code from the Phone setup tab."; return; }
   const linkChanged = url !== settings.url;
   settings = { url, key };
   store(KEYS.settings, settings);

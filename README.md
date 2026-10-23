@@ -27,40 +27,60 @@ It takes about 15 minutes, and you only do it once.
 
 Use a computer for this step. Google's script editor is very hard to use on a phone.
 
-1. Sign in to Google, then go to **[sheets.new](https://sheets.new)**. A blank spreadsheet opens.
-   Click *Untitled spreadsheet* at the top left and name it **Shop Hours Backup**.
-2. In the sheet's menu, click **Extensions → Apps Script**. A code editor opens in a new tab.
-   Click *Untitled project* at the top left, name it **Shop Hours Backup**, and click **Rename**. Google shows this name on the permission screens in part 4.
-3. Open the **[backup script](backup-script/Code.gs)** in another tab and click the **copy button** (two overlapping squares, top right of the code).
-   Go back to the code editor, select everything that's already there and delete it, then paste.
-   Click the **Save** icon (the floppy disk).
-4. Click **Run**. If the box next to Run says something other than **setup**, pick **setup** first.
-   Google asks for permission:
-   - Click **Review permissions** and pick your account.
-   - You'll see **"Google hasn't verified this app."** Click **Advanced**, then **Go to Shop Hours Backup (unsafe)**.
-   - If you see checkboxes, tick them all. Then click **Allow** (or **Continue**).
+1. **Copy the Shop Hours sheet.** Sign in to Google, then open **[this copy link](https://docs.google.com/spreadsheets/d/1H14dK0yR73WcFe8N4eWGyClRi8nG8Ai50WOexEoqcs4/copy)** Google shows **Copy document**, *"The attached Apps Script file and functionality will also be copied."* That's the backup script, and it's what you want. Click **Make a copy**. (**View Apps Script file** just shows you the script's code first, if you're curious.)
+   Your copy opens, named *Copy of Shop Hours Backup*. Click the name at the top left and take out *Copy of* so it's just **Shop Hours Backup**.
+2. **Make your backup key.** Wait a few seconds until **Shop Hours** shows up in the menu bar, to the right of *Help*. Click **Shop Hours → Phone setup**.
+   > **No Shop Hours menu after 10 seconds?** If you use **Brave**, click the lion icon in the address bar and turn **Shields off** for this site. An ad blocker can cause the same thing, so pause it for this site. Or do this step in **Chrome** or **Safari**. Then reload the page.
+   The first time, Google asks for permission:
+   - Click **Continue** (or **Review permissions**). If Google asks which account to use, pick yours.
+   - If you see **"Google hasn't verified this app"**, click **Advanced**, then **Go to Shop Hours Backup (unsafe)**. Many people never see this screen.
+   - You'll see **"Shop Hours Backup wants access to your Google Account."** It should say only *"View and manage spreadsheets that this application has been installed in."* **If it asks for anything else, such as your Drive or Gmail, click Cancel.** If you see checkboxes, tick them all. Then click **Continue** (on some accounts it says **Allow**).
 
-   > **Is that safe?** Yes. Google shows that warning for any script a person writes for their own use, rather than one from a company Google has checked. The script runs in your account and can only open this one spreadsheet.
+   > **Is that safe?** Yes. "Installed in" means this one spreadsheet. The script can't open your other files, your email or anything else. It runs in your own account, and you can remove its access at any time in your Google Account settings.
 
-   When it's done, the log at the bottom says *"Done. Your backup key is …"*.
-5. Click **Deploy → New deployment**. Click the gear next to *Select type* and choose **Web app**. Set:
-   - **Execute as:** Me
-   - **Who has access:** Anyone
+   After a few seconds, new tabs appear and the **Phone setup** tab opens with your **backup key**. If nothing happens after you allow access, click **Shop Hours → Phone setup** again. Don't go on until you see the Phone setup tab.
+3. **Put the script online.** Click **Extensions → Apps Script**. The script editor opens in a new tab.
+   - Click the blue **Deploy** button at the top right. A menu opens with **New deployment**, **Manage deployments** and **Test deployments**. Pick **New deployment**.
+   - A window opens. At its top left, next to *Select type*, click the **gear icon**. It lists **Web app**, **API Executable**, **Add-on** and **Library**. Pick **Web app**.
+   - In **Description**, type **Shop Hours backup**. It's only a label for you, so any wording works.
+   - Set **Execute as** to **Me** (your email address).
+   - **Change Who has access to Anyone.** It starts out set to *Only myself*, and with that setting your phone can't reach the sheet. *Anyone with a Google account* doesn't work either.
+   - Click **Deploy**.
+   - If it says *"The Web App requires you to authorize access to your data"*, click **Authorize access** and answer the same permission screens as in part 2, ending with **Continue**.
 
-   Click **Deploy**. *Anyone* is what lets the app on your phone reach the sheet without signing in. Your backup key keeps everyone else out.
-6. Copy the **Web app URL** it shows you (it ends in `/exec`) and click **Done**.
-7. Go back to your spreadsheet's tab. There's a new **Phone setup** tab with your **backup key**. Paste the Web app URL into the box next to **Web app link**, so the two are saved together.
+   *Anyone* is what lets the app on your phone reach the sheet without signing in. Your backup key keeps everyone else out.
+4. Google says *"Deployment successfully updated"* and shows a **Web app URL** (it starts with `https://script.google.com/macros/s/` and ends in `/exec`). Click **Copy** under the URL, then the blue **Done** button at the bottom of the window.
+   Google also shows *"Version 1"*. That's Google's count of how many times you've deployed, not the Shop Hours version, so you can ignore it.
+5. **Make your setup code.** Go back to your spreadsheet's tab, open the **Phone setup** tab, and paste the Web app URL into the box next to **Web app link**. The **Setup code** box below it fills in by itself.
 
-**Now get both onto your phone.** The easiest way is to email the Web app link and the backup key to yourself. You can also open the sheet in the Google Sheets app on your phone and copy them from the Phone setup tab.
+   > **Don't share this sheet,** or screenshots of the Phone setup tab, even when asking for help. Anyone with the link and the key can read and change your backup. To share your hours with someone, use **Backup → Export CSV** in the app instead.
+
+**Now get the setup code onto your phone.** The easiest way is to email it to yourself. You can also open the sheet in the Google Sheets app on your phone and copy it from the Phone setup tab.
+
+<details>
+<summary>Can't use the copy link? Set up the sheet by hand instead.</summary>
+
+1. Go to **[sheets.new](https://sheets.new)** and name the new sheet **Shop Hours Backup**.
+2. Click **Extensions → Apps Script**. Click *Untitled project* at the top left, name it **Shop Hours Backup**, and click **Rename**.
+3. Open the **[backup script](backup-script/Code.gs)** and click its **copy button** (two overlapping squares, top right of the code). In the script editor, delete what's there, paste, and click the **Save** icon.
+4. Close the script editor's tab, reload the spreadsheet, and carry on from part 2 above.
+
+</details>
 
 ### Step 2: Install the app on your phone (about 2 minutes)
 
 The app's address is **https://emum.github.io/shop-hours/**
 
-**iPhone**
+**iPhone (use Safari)**
+
+These steps are for **Safari**, the iPhone's built-in browser with the blue compass icon. Chrome, Brave and other iPhone browsers have different menus, which these steps don't cover yet. Use Safari for this part, even if you normally use another browser.
+
 1. Open that address in **Safari**.
 2. Tap **Share** (the square with the arrow) → **Add to Home Screen**. If there's an **Open as Web App** switch, leave it on. Tap **Add**.
-3. From now on, **always open Shop Hours from the Home Screen icon**, never from a Safari tab. On iPhone, the icon and Safari keep separate copies of your entries.
+3. **Close the Safari tab.** Don't set anything up in it.
+4. Go to your Home Screen and open **Shop Hours from the new icon**. Do Step 3 there.
+
+> **Important on iPhone:** the Home Screen icon and Safari keep **separate copies** of everything. Anything you set up or log in a Safari tab won't be in the icon app. From now on, **always open Shop Hours from the icon**. If the app ever shows a red box saying *"Open Shop Hours from your Home Screen"*, you're in a browser tab, not the app.
 
 **Android**
 1. Open that address in **Chrome**.
@@ -69,8 +89,8 @@ The app's address is **https://emum.github.io/shop-hours/**
 
 ### Step 3: Connect the backup (about 1 minute)
 
-1. In the app, tap **Backup** (top right).
-2. Paste in the **Web app link** and the **backup key**, then tap **Save and test**.
+1. Open Shop Hours **from the Home Screen icon** (on iPhone, not from Safari), then tap **Backup** (top right).
+2. Paste the **setup code** into the first box. The backup key box fills in by itself. Tap **Save and test**.
    It should say ***Connected to "Shop Hours Backup"***.
 3. Tap **Projects**, add your first car or job, and log some hours. A minute later the entry shows up on the sheet's **Entries** tab.
 
@@ -101,22 +121,22 @@ Make your changes in the app, not by editing rows in the sheet. The sheet is the
 
 | The app says… | What to do |
 |---|---|
-| *That doesn't look like a Google Apps Script link* | Copy the **Web app URL** again (Step 1, part 6). It starts with `https://script.google.com/macros/s/` and ends in `/exec`. |
-| *That link didn't answer like the backup script* | Usually **Who has access** isn't set to **Anyone**. In Apps Script, go to **Deploy → Manage deployments**, click the pencil, set it to **Anyone**, pick **New version**, and click **Deploy**. |
-| *This backup script has no key yet* | Do Step 1, part 4 (click **Run**). |
+| *That doesn't look like a Google Apps Script link* | Copy the **setup code** again from the Phone setup tab. If the Setup code box is empty, paste the **Web app URL** into the tab first (Step 1, part 5). |
+| *That link didn't answer like the backup script* | Usually **Who has access** isn't set to **Anyone**. In Apps Script, click the blue **Deploy** button, then **Manage deployments**. Click the pencil, set it to **Anyone**, pick **New version**, and click **Deploy**. |
+| *This backup script has no key yet* | In your Google Sheet, click **Shop Hours → Phone setup** (Step 1, part 2). |
 | *The backup key does not match* | Copy the key again from the **Phone setup** tab of your sheet. |
 | *Couldn't reach Google* | Check that the phone is online and try again. |
 | *Changes waiting to back up* | Nothing's wrong. There's no signal right now, and they'll be sent automatically. Tap **Try now** to send them right away. |
 | *Google took too long to answer* | Google was slow. The app tries again by itself. |
 
-**Entries are missing on iPhone:** make sure you opened the app from the Home Screen icon and not from Safari.
+**On iPhone, the app is empty or asks for the backup link again:** you probably set it up or logged hours in a Safari tab, which keeps its own separate copy. Open Shop Hours from the Home Screen icon and connect the backup there (Step 3). Then tap **Backup → Restore from Google Sheets**. Anything that was backed up from Safari comes back.
 
 ## Updating the backup script
 
 The app updates itself. The backup script lives in your Google account, so you update that part yourself. When a newer one is out, the app shows **Update the backup script** under the backup line. Your backups keep working until you get to it. To update:
 
 1. Open your sheet, then **Extensions → Apps Script**. Replace all the code with the new [backup script](backup-script/Code.gs) and click **Save**.
-2. Click **Deploy → Manage deployments**, then the pencil icon. Set **Version** to **New version** and click **Deploy**.
+2. Click the blue **Deploy** button at the top right, then **Manage deployments**, then the pencil icon. Set **Version** to **New version** and click **Deploy**.
 
 Your Web app link and backup key stay the same, so there's nothing to change on your phone. The notice goes away the next time the app backs up.
 
@@ -124,7 +144,7 @@ Your Web app link and backup key stay the same, so there's nothing to change on 
 
 - Your hours and notes are stored on your phone and in your own Google Sheet, and nowhere else.
 - The app is a web page hosted for free on GitHub Pages. GitHub serves the app's files, like any website, but your entries never go there. The app has no tracking or analytics.
-- Keep your backup key to yourself. Anyone with both the Web app link and the key could add rows to your sheet.
+- Keep your backup sheet to yourself. Its Phone setup tab holds your Web app link and backup key, and anyone with both can read and change your backup. Share your hours with **Export CSV** instead of sharing the sheet.
 
 ---
 

@@ -3,11 +3,11 @@ const assert = require("assert");
 const S = require("path").join(__dirname, "..", "backup-script", "Code.gs");
 const V = +require("fs").readFileSync(S, "utf8").match(/const SCRIPT_VERSION = (\d+);/)[1];
 const APP = require("path").join(__dirname, "..", "app", "index.html");
-assert.strictEqual(+require("fs").readFileSync(APP, "utf8").match(/const SCRIPT_LATEST = (\d+);/)[1], V,
-  "bump SCRIPT_LATEST in app/index.html together with SCRIPT_VERSION in Code.gs");
-// no key yet: says to click Run
+assert.ok(+require("fs").readFileSync(APP, "utf8").match(/const SCRIPT_LATEST = (\d+);/)[1] <= V,
+  "SCRIPT_LATEST in app/index.html can't ask people for a script version that doesn't exist yet");
+// no key yet: says where to make one
 let g = loadScript(S);
-assert.match(g.get({ key: "x" }).error, /no key yet.*click Run/);
+assert.match(g.get({ key: "x" }).error, /no key yet.*Shop Hours, then Phone setup/);
 // setup() makes a key once, shows it on the Phone setup tab, and keeps it (and a pasted link) on later runs
 g.run("setup");
 const tab = g.ss.getSheetByName("Phone setup");
@@ -20,10 +20,32 @@ tab.rows[2][1] = LINK;
 g.run("setup");
 assert.strictEqual(tab.rows[1][1], madeKey, "same key on a second run");
 assert.strictEqual(tab.rows[2][1], LINK, "pasted link kept");
-assert.deepStrictEqual(tab.rows[3], ["Script version", V]);
-// pasting a newer script (fresh context, same stored properties) keeps the key
-const g2 = loadScript(S); Object.assign(g2.props, g.props);
+assert.strictEqual(tab.rows[3][0], "Setup code");
+assert.match(tab.rows[3][1], /^=IF\(B3="".*B3 & "#" & B2\)$/, "setup code joins link and key");
+assert.deepStrictEqual(tab.rows[4], ["Script version", V]);
+assert.strictEqual(g.ss.active, "Phone setup", "setup shows the Phone setup tab");
+// pasting a newer script (fresh context, same spreadsheet, same stored properties) keeps the key
+let g2 = loadScript(S, null, { props: g.props });
 assert.strictEqual(g2.get({ key: madeKey }).ok, true);
+// a copy of the sheet that brought the original's properties along must not share its key
+g2 = loadScript(S, null, { sheetId: "copy-of-sheet-1", props: g.props });
+assert.match(g2.get({ key: madeKey }).error, /no key yet/);
+g2.run("setup");
+const copyKey = g2.ss.getSheetByName("Phone setup").rows[1][1];
+assert.notStrictEqual(copyKey, madeKey, "the copy makes its own key");
+assert.strictEqual(g2.get({ key: copyKey }).ok, true);
+assert.strictEqual(g.get({ key: madeKey }).ok, true, "the original keeps working");
+// a key made before keys remembered their sheet still works
+g2 = loadScript(S, null, { props: { APP_KEY: "abcd-efgh-jkmn" } });
+assert.strictEqual(g2.get({ key: "abcd-efgh-jkmn" }).ok, true);
+// the template's Start here tab is removed by setup, and the sheet gets a Shop Hours menu
+g2 = loadScript(S);
+g2.ss.sheets[0].name = "Start here";
+g2.run("onOpen");
+assert.deepStrictEqual(g2.ss.menus, [{ name: "Shop Hours", items: [["Phone setup", "setup"]] }]);
+g2.run("setup");
+assert.strictEqual(g2.ss.getSheetByName("Start here"), null, "Start here tab removed");
+assert.deepStrictEqual(g2.ss.sheets.map(s => s.name), ["Projects", "Entries", "Deleted", "Phone setup"]);
 // a passphrase typed into APP_KEY wins, and setup shows it
 g = loadScript(S, "amx70");
 g.run("setup");

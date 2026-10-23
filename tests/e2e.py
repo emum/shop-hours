@@ -126,7 +126,9 @@ with sync_playwright() as p:
     # new phone: restore
     c2, pg2 = newctx("dark")
     pg2.goto("http://127.0.0.1:8765/#/backup"); pg2.wait_for_timeout(300)
-    pg2.fill("#f-url", URL); pg2.fill("#f-key", "amx70"); pg2.click("text=Save and test"); pg2.wait_for_timeout(600)
+    pg2.fill("#f-url", URL + "#amx70")  # one setup code from the Phone setup tab
+    assert pg2.input_value("#f-url") == URL and pg2.input_value("#f-key") == "amx70", "setup code split into link and key"
+    pg2.click("text=Save and test"); pg2.wait_for_timeout(600)
     assert "1 project and 3 entries" in pg2.inner_text("#test-result"), pg2.inner_text("#test-result")
     pg2.click("button[data-act=restore]"); pg2.wait_for_timeout(800); pg2.screenshot(path=f"{OUT}/8b-restored.png", full_page=True)
     assert "Restored 4 items" in pg2.inner_text("#toast"), pg2.inner_text("#toast")
@@ -211,6 +213,18 @@ with sync_playwright() as p:
     pg5.click("[data-act=home]"); pg5.wait_for_timeout(300)
     assert pg5.locator("#status a").count() == 0, "notice gone once the script is current"
     c5.close()
+
+    # iPhone: a browser tab warns that its data is separate; the Home Screen app doesn't
+    for standalone in (False, True):
+        c6, pg6 = newctx()
+        c6.add_init_script(f"Object.defineProperty(navigator, 'standalone', {{value: {str(standalone).lower()}}})")
+        pg6.goto("http://127.0.0.1:8765/"); pg6.wait_for_timeout(300)
+        shown = pg6.locator("#tabwarn").count() == 1
+        pg6.goto("http://127.0.0.1:8765/#/backup"); pg6.wait_for_timeout(300)
+        shown_backup = pg6.locator("#tabwarn").is_visible()
+        if not standalone: pg6.screenshot(path=f"{OUT}/12-ios-tab-warning.png")
+        assert shown == shown_backup == (not standalone), ("standalone", standalone, shown, shown_backup)
+        c6.close()
     b.close()
 print("posts:", state["posts"], "page errors:", errors)
 assert not errors, errors
