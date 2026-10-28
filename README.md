@@ -5,14 +5,16 @@ Log the hours you put into each car or job, right from your phone, and see how m
 **Free. No account, no subscription, no ads.** Every entry is backed up to a Google Sheet in *your own* Google account. Nobody else ever sees your hours.
 
 <p>
-  <img src="images/home.png" width="250" alt="Project list: '70 AMX with 40.5 hours logged and 359.5 of 400 left, F-100 bed, and a finished Chevelle door">
-  <img src="images/project.png" width="250" alt="'70 AMX project: 40.5 hours logged, 359.5 left, and a list of dated entries with notes">
-  <img src="images/log-hours.png" width="250" alt="Log hours form: project, date, hours with plus and minus buttons, and what got done">
+  <img src="images/home.png" width="200" alt="Project list: '70 AMX with 99 hours logged, 301 of 400 left and an estimated finish around Mar 10, 2027; F-100 bed with an estimated finish around Dec 5; and a finished Chevelle door 1 hr over estimate">
+  <img src="images/project.png" width="200" alt="'70 AMX project: 99 hours logged, 301 left, estimated finish around Mar 10, 2027 at 7.6 hrs a day about 2 days a week, hours by employee for Mike, Dave and Luis, and dated entries with names and notes">
+  <img src="images/log-hours.png" width="200" alt="Log hours form: project, who worked with Dave and Mike picked, date, hours with plus and minus buttons, and what got done">
+  <img src="images/employees.png" width="200" alt="Employees screen: Dave, Luis and Mike with their total hours, and an Add employee button">
 </p>
 
 - **Works with no signal.** Log hours in a garage with no bars. The app saves everything on the phone and backs it up as soon as you're back online.
 - **Your own backup.** Every entry, edit and delete goes to your Google Sheet. Deleted entries are kept on a separate tab, so nothing is ever lost.
-- **Estimates.** Give a job a rough total (say 400 hours) and the app shows what's left, with a masking-tape progress bar.
+- **Estimates.** Give a job a rough total (say 400 hours) and the app shows what's left, with a masking-tape progress bar, plus an estimated finish date based on how the job's been going.
+- **Your crew.** Log who did the work. Everyone's hours are kept separately, so you can see each person's total on every job.
 - **iPhone and Android.** It runs in the phone's web browser and installs on your Home Screen like an app. There's nothing to buy or download from an app store.
 
 ---
@@ -101,11 +103,14 @@ That's it.
 ## Using it
 
 - **Log hours:** tap **Log hours**, pick the project, set the hours (the **−** and **+** buttons go by half an hour), and say what got done.
+- **Who worked:** add your people under **Employees** (top of the main screen). Then on **Log hours**, tap everyone who worked those hours. Each person gets their own entry for the same hours, so two people working 8 hours makes two 8-hour entries. Picking nobody is fine too.
+- **Employees:** tap a name to rename it. **Retire** someone who's left: their old entries keep their name, but they're no longer offered when you log hours.
+- **Estimated finish:** after 3 days of work on a job that has an estimate, the app shows roughly when it will be done, based on your recent pace (hours a day, and how many days a week the job gets worked). It updates as you log hours.
 - **Fix a mistake:** tap any entry to change or delete it.
 - **Estimates:** tap **Edit project** to add or change the estimated total at any time. Rough guesses are fine.
 - **Finished a job:** **Edit project → Mark as finished** moves it to the Finished list. You can move it back.
 - **The backup line** at the top of the screen tells you where things stand. *Everything backed up* means the sheet has it all. *2 changes waiting to back up* means there's no signal right now. They'll go out on their own once the phone is online.
-- **In the sheet:** the **Projects** tab totals your logged hours and hours left for each job. The **Entries** tab has every entry. The **Deleted** tab keeps a copy of anything you delete.
+- **In the sheet:** the **Projects** tab totals your logged hours and hours left for each job. The **Entries** tab has every entry, with who worked it. The **Employees** tab totals each person's hours. The **Deleted** tab keeps a copy of anything you delete.
 - **Spreadsheet file:** **Backup → Export CSV** saves all your entries as a file you can email or open in Excel or Numbers.
 
 Make your changes in the app, not by editing rows in the sheet. The sheet is the backup copy. Changes typed into it don't flow back to your phone.
@@ -128,12 +133,13 @@ Make your changes in the app, not by editing rows in the sheet. The sheet is the
 | *Couldn't reach Google* | Check that the phone is online and try again. |
 | *Changes waiting to back up* | Nothing's wrong. There's no signal right now, and they'll be sent automatically. Tap **Try now** to send them right away. |
 | *Google took too long to answer* | Google was slow. The app tries again by itself. |
+| *Employee names are only on this phone* | Your backup script is older than the Employees feature. Update it (see **Updating the backup script** below), then tap **Check again**. Nothing is lost meanwhile. |
 
 **On iPhone, the app is empty or asks for the backup link again:** you probably set it up or logged hours in a Safari tab, which keeps its own separate copy. Open Shop Hours from the Home Screen icon and connect the backup there (Step 3). Then tap **Backup → Restore from Google Sheets**. Anything that was backed up from Safari comes back.
 
 ## Updating the backup script
 
-The app updates itself. The backup script lives in your Google account, so you update that part yourself. When a newer one is out, the app shows **Update the backup script** under the backup line. Your backups keep working until you get to it. To update:
+The app updates itself. The backup script lives in your Google account, so you update that part yourself. When you need a newer one, the app shows **Update the backup script** under the backup line. Your backups keep working until you get to it. (If you use **Employees** with a backup script from before they existed, the names wait on your phone until you update. Your hours keep backing up meanwhile.) To update:
 
 1. Open your sheet, then **Extensions → Apps Script**. Replace all the code with the new [backup script](backup-script/Code.gs) and click **Save**.
 2. Click the blue **Deploy** button at the top right, then **Manage deployments**, then the pencil icon. Set **Version** to **New version** and click **Deploy**.

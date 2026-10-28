@@ -45,7 +45,7 @@ g2.run("onOpen");
 assert.deepStrictEqual(g2.ss.menus, [{ name: "Shop Hours", items: [["Phone setup", "setup"]] }]);
 g2.run("setup");
 assert.strictEqual(g2.ss.getSheetByName("Start here"), null, "Start here tab removed");
-assert.deepStrictEqual(g2.ss.sheets.map(s => s.name), ["Projects", "Entries", "Deleted", "Phone setup"]);
+assert.deepStrictEqual(g2.ss.sheets.map(s => s.name), ["Projects", "Entries", "Employees", "Deleted", "Phone setup"]);
 // a passphrase typed into APP_KEY wins, and setup shows it
 g = loadScript(S, "amx70");
 g.run("setup");
@@ -54,7 +54,7 @@ g = loadScript(S, "amx70");
 assert.match(g.get({ key: "bad" }).error, /does not match/);
 assert.deepStrictEqual(g.get({ key: "amx70" }), { ok: true, sheet: "Shop Hours Backup", projects: 0, entries: 0, version: V });
 assert.strictEqual(g.get({ key: "bad" }).version, V, "errors carry the version too");
-assert.deepStrictEqual(g.ss.sheets.map(s => s.name), ["Projects", "Entries", "Deleted"]);
+assert.deepStrictEqual(g.ss.sheets.map(s => s.name), ["Projects", "Entries", "Employees", "Deleted"]);
 const t = n => new Date(Date.UTC(2026, 9, 16, 12, n)).toISOString();
 const P = { id: "p1", name: "AMX", est: 400, status: "active", created: t(0), updated: t(0) };
 const E1 = { id: "e1", projectId: "p1", date: "2026-10-16", hours: 10, note: "Blocked 120 door/trunk jams", created: t(1), updated: t(1) };
@@ -79,7 +79,7 @@ assert.strictEqual(ent.getLastRow(), 2);
 assert.strictEqual(g.ss.getSheetByName("Deleted").rows[1][2], "e2");
 // export round trip
 const ex = g.get({ key: "amx70", action: "export" });
-assert.deepStrictEqual(ex.entries, [{ id: "e1", date: "2026-10-16", hours: 9, note: E1.note, projectId: "p1", created: t(1), updated: t(5) }]);
+assert.deepStrictEqual(ex.entries, [{ id: "e1", date: "2026-10-16", hours: 9, note: E1.note, projectId: "p1", created: t(1), updated: t(5), employeeId: "" }]);
 assert.deepStrictEqual(ex.projects, [{ id: "p1", name: "AMX '70", est: 400, status: "active", created: t(0), updated: t(6) }]);
 // garbage body
 assert.match(g.post("not json").error, /not readable/);
@@ -103,4 +103,44 @@ back = g.get({ key: "k", action: "export" });
 assert.strictEqual(back.entries[0].updated, "");
 assert.strictEqual(back.entries[1].updated, "");
 assert.strictEqual(back.entries[2].updated, t(1));
+// ---- employees (script v4) ----
+g = loadScript(S, "k");
+const M = { id: "m1", name: "Mike", active: true, created: t(0), updated: t(0) };
+const D = { id: "m2", name: "Dave", active: true, created: t(0), updated: t(0) };
+const EM = (id, employeeId, extra) => ({ ...E1, id, employeeId, ...extra });
+// an entry can arrive before its employee; the name is filled in when the employee does
+g.post({ key: "k", ops: [{ op: "putProject", project: P }, { op: "putEntry", entry: EM("x1", "m1") },
+  { op: "putEmployee", employee: M }, { op: "putEmployee", employee: D }, { op: "putEntry", entry: EM("x2", "m2") },
+  { op: "putEntry", entry: EM("x3", "") }] });
+const ents = g.ss.getSheetByName("Entries"), emps = g.ss.getSheetByName("Employees");
+assert.deepStrictEqual(ents.rows[0].slice(8), ["Employee", "Employee ID"]);
+assert.deepStrictEqual(ents.rows.slice(1).map(r => [r[8], r[9]]), [["Mike", "m1"], ["Dave", "m2"], ["", ""]]);
+assert.deepStrictEqual(emps.rows[1].slice(0, 4), ["m1", "Mike", "=SUMIF(Entries!J:J,A2,Entries!D:D)", "Active"]);
+// rename carries to Entries; retiring keeps the row
+g.post({ key: "k", ops: [{ op: "putEmployee", employee: { ...M, name: "Michael", active: false, updated: t(7) } }] });
+assert.strictEqual(ents.rows[1][8], "Michael");
+assert.strictEqual(emps.rows[1][3], "Retired");
+// a stale employee update is ignored
+g.post({ key: "k", ops: [{ op: "putEmployee", employee: { ...M, name: "Old", updated: t(1) } }] });
+assert.strictEqual(emps.rows[1][1], "Michael");
+// an entry from an app version before employees (no employeeId at all) keeps its employee
+const { employeeId: _drop, ...noEmp } = EM("x1", "m1", { hours: 3, updated: t(8) });
+g.post({ key: "k", ops: [{ op: "putEntry", entry: noEmp }] });
+assert.deepStrictEqual([ents.rows[1][3], ents.rows[1][8], ents.rows[1][9]], [3, "Michael", "m1"]);
+// export includes employees and each entry's employeeId
+let exE = g.get({ key: "k", action: "export" });
+assert.deepStrictEqual(exE.employees.map(m => [m.id, m.name, m.active]), [["m1", "Michael", false], ["m2", "Dave", true]]);
+assert.deepStrictEqual(exE.entries.map(e => e.employeeId), ["m1", "m2", ""]);
+// deleting an employee copies it to Deleted
+g.post({ key: "k", ops: [{ op: "delEmployee", id: "m2" }] });
+assert.strictEqual(emps.getLastRow(), 2);
+assert.deepStrictEqual([...g.ss.getSheetByName("Deleted").rows.slice(-1)[0].slice(1, 5)], ["Employee", "m2", "", "Dave"]);
+// a sheet made by an older script gets the new Entries headers and an Employees tab
+g = loadScript(S, "k");
+g.get({ key: "k" });
+g.ss.getSheetByName("Entries").rows[0] = g.ss.getSheetByName("Entries").rows[0].slice(0, 8);
+g.ss.sheets.splice(g.ss.sheets.indexOf(g.ss.getSheetByName("Employees")), 1);
+g.get({ key: "k" });
+assert.deepStrictEqual(g.ss.getSheetByName("Entries").rows[0].slice(8), ["Employee", "Employee ID"]);
+assert.ok(g.ss.getSheetByName("Employees"), "Employees tab added");
 console.log("all script tests passed");

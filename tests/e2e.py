@@ -225,6 +225,106 @@ with sync_playwright() as p:
         if not standalone: pg6.screenshot(path=f"{OUT}/12-ios-tab-warning.png")
         assert shown == shown_backup == (not standalone), ("standalone", standalone, shown, shown_backup)
         c6.close()
+
+    # estimated finish, on a fixed date (Wed Oct 28, 2026)
+    def seeded(projects, entries):
+        c, pg = newctx()
+        pg.clock.set_fixed_time("2026-10-28T12:00:00")
+        pg.goto("http://127.0.0.1:8765/")
+        T = "2026-10-01T12:00:00.000Z"
+        data = {"projects": [dict(id=i, name=n, est=e, status=s, created=T, updated=T) for i, n, e, s in projects],
+                "entries": [dict(id=f"{p}{k}", projectId=p, date=d, hours=h, note="", created=T, updated=T)
+                            for k, (p, d, h) in enumerate(entries)]}
+        pg.evaluate("d => localStorage.setItem('sh.data', JSON.stringify(d))", data)
+        pg.reload(); pg.wait_for_timeout(300)
+        return c, pg
+    c7, pg7 = seeded(
+        [("pA", "Steady pace", 100, "active"), ("pB", "Just started", 50, "active"), ("pC", "Over", 10, "active"),
+         ("pD", "No estimate", None, "active"), ("pE", "Finished", 100, "done")],
+        # pA: 28 hrs over 4 days since Oct 14 -> 7 hrs a day, 4 days in 15 -> 72 hrs left takes 39 days -> Dec 6
+        [("pA", "2026-10-27", 8), ("pA", "2026-10-23", 6), ("pA", "2026-10-20", 8), ("pA", "2026-10-14", 6),
+         ("pB", "2026-10-27", 4), ("pB", "2026-10-26", 4)]
+        + [(p, d, 4) for p in ("pC", "pD", "pE") for d in ("2026-10-20", "2026-10-21", "2026-10-22")])
+    homes = pg7.locator(".finish").all_inner_texts()
+    assert homes == ["Estimated finish around Dec 6"], homes
+    pg7.screenshot(path=f"{OUT}/13-finish-home.png", full_page=True)
+    pg7.goto("http://127.0.0.1:8765/#/p/pA"); pg7.wait_for_timeout(300)
+    fa = pg7.inner_text("#finish")
+    assert "around Dec 6" in fa and "7 hrs a day, about 2 days a week" in fa, fa
+    pg7.screenshot(path=f"{OUT}/14-finish-project.png")
+    pg7.goto("http://127.0.0.1:8765/#/p/pB"); pg7.wait_for_timeout(300)
+    assert "Log a few more days" in pg7.inner_text("#finish")
+    for pid in ("pC", "pD", "pE"):
+        pg7.goto(f"http://127.0.0.1:8765/#/p/{pid}"); pg7.wait_for_timeout(200)
+        assert pg7.locator("#finish").count() == 0, pid
+    c7.close()
+
+    # employees: held while the script is too old to keep them, sent once it's updated
+    def tick(pg, n=3):
+        for _ in range(n): pg.clock.run_for(1000); pg.wait_for_timeout(150)
+    def add_employee(pg, name):
+        pg.click("#dock .btn"); pg.wait_for_timeout(300)
+        pg.fill("#m-name", name); pg.click("#employee-form button[type=submit]"); pg.wait_for_timeout(200)
+    def crew_rows():
+        d = ask({"dump": 1})
+        return sorted((r[8], r[9] != "") for r in d["ent"][1:] if r[5] == "pCrew")
+    c8, pg8 = setup_phone()
+    state["old"] = True
+    pg8.click("[data-act=employees]"); pg8.wait_for_timeout(300)
+    add_employee(pg8, "Mike"); add_employee(pg8, "Dave")
+    tick(pg8)
+    assert "Employee names are only on this phone" in pg8.inner_text("#status"), pg8.inner_text("#status")
+    assert pg8.evaluate("outbox.filter(x => x.key.startsWith('m:')).length") == 2, "employee changes held"
+    assert sheet()["employees"] == [], "nothing sent to an old script"
+    pg8.evaluate("putProject({id: 'pCrew', name: 'Crew job', est: 40, status: 'active', created: nowIso()})")
+    pg8.goto("http://127.0.0.1:8765/#/p/pCrew"); pg8.wait_for_timeout(300)
+    pg8.click("#dock .btn"); pg8.wait_for_timeout(300)
+    pg8.fill("#e-hours", "8")
+    pg8.click("[data-chip]:has-text('Mike')"); pg8.click("[data-chip]:has-text('Dave')")
+    pg8.screenshot(path=f"{OUT}/15-log-crew.png")
+    pg8.click("text=Save entry"); pg8.wait_for_timeout(300)
+    assert "8 hrs each for Dave, Mike" in pg8.inner_text("#toast"), pg8.inner_text("#toast")
+    assert pg8.evaluate("entriesFor('pCrew').length") == 2, "one entry per person"
+    tick(pg8)
+    assert len(crew_rows()) == 2, "entries still back up to an old script"
+    # the script gets updated: Check again sends the employees and their entries
+    state["old"] = False
+    pg8.click("[data-act=retry]"); tick(pg8, 5)
+    assert sorted(m["name"] for m in sheet()["employees"]) == ["Dave", "Mike"], sheet()["employees"]
+    assert crew_rows() == [("Dave", True), ("Mike", True)], crew_rows()
+    assert "Everything backed up" in pg8.inner_text("#status"), pg8.inner_text("#status")
+    crew = pg8.inner_text("#crew")
+    assert "Mike" in crew and "Dave" in crew and "8 hrs" in crew, crew
+    pg8.screenshot(path=f"{OUT}/16-project-crew.png", full_page=True)
+    # editing an entry: one person only
+    pg8.click(".entry:has-text('Dave')"); pg8.wait_for_timeout(300)
+    assert pg8.locator("[data-chip][aria-pressed=true]").count() == 1
+    pg8.click("[data-chip]:has-text('Mike')")
+    assert pg8.locator("[data-chip][aria-pressed=true]").all_inner_texts() == ["Mike"], "single choice when editing"
+    pg8.click("text=Save changes"); pg8.wait_for_timeout(300)
+    assert "16 hrs" in pg8.inner_text("#crew"), pg8.inner_text("#crew")
+    # rename and retire
+    pg8.goto("http://127.0.0.1:8765/#/employees"); pg8.wait_for_timeout(300)
+    pg8.click(".entry:has-text('Mike')"); pg8.wait_for_timeout(300)
+    pg8.fill("#m-name", "Michael"); pg8.click("text=Save changes"); pg8.wait_for_timeout(200)
+    pg8.click(".entry:has-text('Dave')"); pg8.wait_for_timeout(300)
+    pg8.click("text=Retire"); pg8.wait_for_timeout(200)
+    pg8.screenshot(path=f"{OUT}/17-employees.png", full_page=True)
+    tick(pg8)
+    assert crew_rows() == [("Michael", True), ("Michael", True)], crew_rows()
+    pg8.goto("http://127.0.0.1:8765/#/p/pCrew"); pg8.wait_for_timeout(300)
+    pg8.click("#dock .btn"); pg8.wait_for_timeout(300)
+    assert pg8.locator("[data-chip]").all_inner_texts() == ["Michael"], "retired people aren't offered"
+    pg8.click("text=Cancel")
+    c8.close()
+    # a new phone gets the employees back with Restore
+    c9, pg9 = setup_phone()
+    pg9.goto("http://127.0.0.1:8765/#/backup"); pg9.wait_for_timeout(300)
+    pg9.evaluate("restore()"); pg9.wait_for_timeout(500)
+    assert pg9.evaluate("data.employees.map(m => m.name + ':' + m.active).sort().join(',')") == "Dave:false,Michael:true"
+    pg9.goto("http://127.0.0.1:8765/#/p/pCrew"); pg9.wait_for_timeout(300)
+    assert "Michael" in pg9.inner_text("#crew") and "16 hrs" in pg9.inner_text("#crew")
+    c9.close()
     b.close()
 print("posts:", state["posts"], "page errors:", errors)
 assert not errors, errors

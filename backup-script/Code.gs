@@ -24,7 +24,7 @@ const START_TAB = 'Start here'; // the template's welcome tab; removed once setu
 // SCRIPT_LATEST in app/index.html is the version people should have: raise it
 // only when an update matters to existing users, since raising it asks everyone
 // to update. The first published script sent no version; the app counts that as 1.
-const SCRIPT_VERSION = 3;
+const SCRIPT_VERSION = 4;
 
 const SHEETS = {
   projects: {
@@ -34,8 +34,14 @@ const SHEETS = {
   },
   entries: {
     name: 'Entries',
-    headers: ['Entry ID', 'Date', 'Project', 'Hours', 'Note', 'Project ID', 'Created', 'Updated'],
-    widths: [110, 90, 150, 60, 420, 110, 150, 150],
+    // Employee columns came later (v4), so they go at the end where nothing else moves.
+    headers: ['Entry ID', 'Date', 'Project', 'Hours', 'Note', 'Project ID', 'Created', 'Updated', 'Employee', 'Employee ID'],
+    widths: [110, 90, 150, 60, 420, 110, 150, 150, 130, 110],
+  },
+  employees: {
+    name: 'Employees',
+    headers: ['Employee ID', 'Name', 'Logged Hours', 'Status', 'Created', 'Updated'],
+    widths: [110, 160, 100, 80, 150, 150],
   },
   deleted: {
     name: 'Deleted',
@@ -143,6 +149,8 @@ function applyOp_(ctx, op) {
     case 'delProject': return delProject_(ctx, op.id);
     case 'putEntry':   return putEntry_(ctx, op.entry);
     case 'delEntry':   return delEntry_(ctx, op.id);
+    case 'putEmployee': return putEmployee_(ctx, op.employee);
+    case 'delEmployee': return delEmployee_(ctx, op.id);
     default: throw new Error('Unknown backup operation: ' + op.op);
   }
 }
@@ -167,7 +175,7 @@ function putProject_(ctx, p) {
   if (!existing) remember_(ctx, sheet, p.id, r);
   // Keep the Project column on the Entries tab in step with renames
   // (and fill it in for any entries that arrived before their project did).
-  if (!existing || oldName !== p.name) renameInEntries_(ctx, p.id, p.name);
+  if (!existing || oldName !== p.name) renameInEntries_(ctx, 6, 3, p.id, p.name);
 }
 
 function delProject_(ctx, id) {
@@ -186,17 +194,54 @@ function putEntry_(ctx, en) {
   const existing = rowOf_(ctx, sheet, en.id);
   if (existing && isNewer_(sheet, existing, en.updated)) return;
   const r = existing || sheet.getLastRow() + 1;
-  sheet.getRange(r, 1, 1, 8).setValues([[
+  const row = [
     en.id,
     en.date,                      // "YYYY-MM-DD"; Sheets stores it as a real date
-    safeText_(projectName_(ctx, en.projectId)),
+    safeText_(nameOf_(ctx, ctx.projects, en.projectId)),
     Number(en.hours) || 0,
     safeText_(en.note || ''),
     en.projectId,
     stamp_(en.created),
     stamp_(en.updated),
-  ]]);
+  ];
+  // App versions before employees send no employeeId at all. Leave the employee
+  // columns alone for those rather than blanking someone's employee.
+  if (Object.prototype.hasOwnProperty.call(en, 'employeeId')) {
+    row.push(en.employeeId ? safeText_(nameOf_(ctx, ctx.employees, en.employeeId)) : '', en.employeeId || '');
+  }
+  sheet.getRange(r, 1, 1, row.length).setValues([row]);
   if (!existing) remember_(ctx, sheet, en.id, r);
+}
+
+function putEmployee_(ctx, m) {
+  if (!m || !m.id) return;
+  const sheet = ctx.employees;
+  const existing = rowOf_(ctx, sheet, m.id);
+  if (existing && isNewer_(sheet, existing, m.updated, 6)) return;
+  const r = existing || sheet.getLastRow() + 1;
+  const oldName = existing ? String(sheet.getRange(r, 2).getValue()) : null;
+  sheet.getRange(r, 1, 1, 6).setValues([[
+    m.id,
+    safeText_(m.name),
+    '=SUMIF(Entries!J:J,A' + r + ',Entries!D:D)',
+    m.active === false ? 'Retired' : 'Active',
+    stamp_(m.created),
+    stamp_(m.updated),
+  ]]);
+  if (!existing) remember_(ctx, sheet, m.id, r);
+  // Same as projects: keep names on the Entries tab current, and fill them in
+  // for entries that arrived before their employee did.
+  if (!existing || oldName !== m.name) renameInEntries_(ctx, 10, 9, m.id, m.name);
+}
+
+function delEmployee_(ctx, id) {
+  const sheet = ctx.employees;
+  const r = rowOf_(ctx, sheet, id);
+  if (!r) return;
+  const v = sheet.getRange(r, 1, 1, 6).getValues()[0];
+  ctx.deleted.appendRow([new Date(), 'Employee', v[0], '', v[1], '', '']);
+  sheet.deleteRow(r);
+  forget_(ctx, sheet);
 }
 
 function delEntry_(ctx, id) {
@@ -209,19 +254,22 @@ function delEntry_(ctx, id) {
   forget_(ctx, sheet);
 }
 
-function renameInEntries_(ctx, projectId, name) {
+// Writes name into nameCol of every Entries row whose idCol matches id
+// (columns: project 6 -> 3, employee 10 -> 9).
+function renameInEntries_(ctx, idCol, nameCol, id, name) {
   const sheet = ctx.entries;
   const last = sheet.getLastRow();
   if (last < 2) return;
-  const ids = sheet.getRange(2, 6, last - 1, 1).getValues();
+  const ids = sheet.getRange(2, idCol, last - 1, 1).getValues();
   for (let i = 0; i < ids.length; i++) {
-    if (String(ids[i][0]) === projectId) sheet.getRange(i + 2, 3).setValue(safeText_(name));
+    if (String(ids[i][0]) === id) sheet.getRange(i + 2, nameCol).setValue(safeText_(name));
   }
 }
 
-function projectName_(ctx, projectId) {
-  const r = rowOf_(ctx, ctx.projects, projectId);
-  return r ? String(ctx.projects.getRange(r, 2).getValue()) : '';
+// The name (column 2) of a project or employee row, or '' if it hasn't arrived yet.
+function nameOf_(ctx, sheet, id) {
+  const r = rowOf_(ctx, sheet, id);
+  return r ? String(sheet.getRange(r, 2).getValue()) : '';
 }
 
 /* ---------- restore ---------- */
@@ -238,7 +286,7 @@ function exportAll_(ss) {
       updated: iso_(v[7]),
     };
   });
-  const entries = rows_(ss.getSheetByName(SHEETS.entries.name)).map(function (v) {
+  const entries = rows_(ss.getSheetByName(SHEETS.entries.name), 10).map(function (v) {
     return {
       id: String(v[0]),
       date: v[1] instanceof Date ? Utilities.formatDate(v[1], tz, 'yyyy-MM-dd') : String(v[1]),
@@ -247,15 +295,25 @@ function exportAll_(ss) {
       projectId: String(v[5]),
       created: iso_(v[6]),
       updated: iso_(v[7]),
+      employeeId: String(v[9]),
     };
   });
-  return { ok: true, projects: projects, entries: entries };
+  const employees = rows_(ss.getSheetByName(SHEETS.employees.name), 6).map(function (v) {
+    return {
+      id: String(v[0]),
+      name: String(v[1]),
+      active: String(v[3]).toLowerCase() !== 'retired',
+      created: iso_(v[4]),
+      updated: iso_(v[5]),
+    };
+  });
+  return { ok: true, projects: projects, entries: entries, employees: employees };
 }
 
-function rows_(sheet) {
+function rows_(sheet, cols) {
   const last = sheet.getLastRow();
   if (last < 2) return [];
-  return sheet.getRange(2, 1, last - 1, 8).getValues().filter(function (v) { return v[0] !== ''; });
+  return sheet.getRange(2, 1, last - 1, cols || 8).getValues().filter(function (v) { return v[0] !== ''; });
 }
 
 /* ---------- sheet setup ---------- */
@@ -284,10 +342,18 @@ function ensureSheets_() {
         sh.getRange('C:E').setNumberFormat('0.##');
         sh.getRange('G:H').setNumberFormat(STAMP_FORMAT);
       }
+      if (k === 'employees') {
+        sh.getRange('C:C').setNumberFormat('0.##');
+        sh.getRange('E:F').setNumberFormat(STAMP_FORMAT);
+      }
       if (k === 'deleted') {
         sh.getRange('A:A').setNumberFormat(STAMP_FORMAT);
         sh.getRange('D:D').setNumberFormat('m/d/yyyy');
       }
+    } else if (sh.getRange(1, def.headers.length).getValue() === '') {
+      // A tab made by an older script: add the headers for columns added since.
+      sh.getRange(1, 1, 1, def.headers.length).setValues([def.headers]).setFontWeight('bold');
+      def.widths.forEach(function (w, i) { sh.setColumnWidth(i + 1, w); });
     }
   });
   if (created) {
@@ -304,6 +370,7 @@ function context_(ss) {
   return {
     projects: ss.getSheetByName(SHEETS.projects.name),
     entries: ss.getSheetByName(SHEETS.entries.name),
+    employees: ss.getSheetByName(SHEETS.employees.name),
     deleted: ss.getSheetByName(SHEETS.deleted.name),
     maps: {},
   };
@@ -338,8 +405,9 @@ function forget_(ctx, sheet) {
 }
 
 // True when the sheet already holds a newer version than the one arriving.
-function isNewer_(sheet, row, incomingIso) {
-  const have = sheet.getRange(row, 8).getValue();
+// updatedCol is where the Updated stamp lives: 8 on Projects and Entries, 6 on Employees.
+function isNewer_(sheet, row, incomingIso, updatedCol) {
+  const have = sheet.getRange(row, updatedCol || 8).getValue();
   if (!(have instanceof Date) || !incomingIso) return false;
   return have.getTime() > new Date(incomingIso).getTime();
 }
